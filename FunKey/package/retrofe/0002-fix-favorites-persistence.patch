@@ -1,8 +1,8 @@
 diff --git a/RetroFE/Source/Collection/CollectionInfo.cpp b/RetroFE/Source/Collection/CollectionInfo.cpp
-index 3819919..108bce3 100755
+index 3819919..a918f67 100755
 --- a/RetroFE/Source/Collection/CollectionInfo.cpp
 +++ b/RetroFE/Source/Collection/CollectionInfo.cpp
-@@ -73,51 +73,76 @@ CollectionInfo::~CollectionInfo()
+@@ -73,51 +73,81 @@ CollectionInfo::~CollectionInfo()
      }
  }
  
@@ -14,7 +14,12 @@ index 3819919..108bce3 100755
 +    struct stat info;
 +    if ( stat( dir.c_str(), &info ) == 0 )
 +    {
-+        return (info.st_mode & S_IFDIR) != 0;
++        if ( (info.st_mode & S_IFDIR) == 0 )
++        {
++            Logger::write(Logger::ZONE_WARNING, "Collection", dir + " exists, but is not a directory.");
++            return false;
++        }
++        return true;
 +    }
 +
 +#if defined(_WIN32) && !defined(__GNUC__)
@@ -76,11 +81,7 @@ index 3819919..108bce3 100755
 -            // Create playlists directory if it does not exist yet.
 -            struct stat info;
 -            if ( stat( dir.c_str(), &info ) != 0 )
-+            // Create the playlists directory if it does not exist yet. The whole
-+            // chain has to be created: collections/<name> is only pre-created for
-+            // the subset of systems listed in the "share" script.
-+            if ( !makeDirectoryRecursive( dir ) )
-             {
+-            {
 -#if defined(_WIN32) && !defined(__GNUC__)
 -                if(!CreateDirectory(dir.c_str(), NULL))
 -                {
@@ -105,14 +106,18 @@ index 3819919..108bce3 100755
 -#endif
 -            }
 -            else if ( !(info.st_mode & S_IFDIR) )
--            {
++            // Create the playlists directory if it does not exist yet. The whole
++            // chain has to be created: collections/<name> is only pre-created for
++            // the subset of systems listed in the "share" script.
++            if ( !makeDirectoryRecursive( dir ) )
+             {
 -                Logger::write(Logger::ZONE_WARNING, "Collection", dir + " exists, but is not a directory.");
 -                Utils::rootfsReadOnly();
 +                Logger::write(Logger::ZONE_WARNING, "Collection", "Could not create directory " + dir);
                  return false;
              }
  
-@@ -136,16 +161,29 @@ bool CollectionInfo::Save()
+@@ -136,16 +166,29 @@ bool CollectionInfo::Save()
              }
  
              filestream.close();
