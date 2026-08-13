@@ -1,5 +1,5 @@
 diff --git a/RetroFE/Source/Collection/CollectionInfo.cpp b/RetroFE/Source/Collection/CollectionInfo.cpp
-index 3819919..882875c 100755
+index 3819919..108bce3 100755
 --- a/RetroFE/Source/Collection/CollectionInfo.cpp
 +++ b/RetroFE/Source/Collection/CollectionInfo.cpp
 @@ -73,51 +73,76 @@ CollectionInfo::~CollectionInfo()
@@ -112,14 +112,25 @@ index 3819919..882875c 100755
                  return false;
              }
  
-@@ -136,16 +161,18 @@ bool CollectionInfo::Save()
+@@ -136,16 +161,29 @@ bool CollectionInfo::Save()
              }
  
              filestream.close();
 +
-+            // The favorites are now on disk; without this every later Save()
-+            // would rewrite the same file again on each playlist change.
-+            saveRequest = false;
++            // ofstream does not throw on write errors by default, so ask the
++            // stream instead of assuming the data landed. Clearing saveRequest
++            // stops every later Save() from rewriting the same file on each
++            // playlist change; keeping it set on failure means the next change
++            // retries rather than dropping the favorites silently.
++            if(filestream.good())
++            {
++                saveRequest = false;
++            }
++            else
++            {
++                Logger::write(Logger::ZONE_ERROR, "Collection", "Save failed: " + file);
++                retval = false;
++            }
          }
          catch(std::exception &)
          {
