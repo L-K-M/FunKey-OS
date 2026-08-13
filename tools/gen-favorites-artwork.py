@@ -11,11 +11,11 @@ layout's own font and sampled from its own palette.
 import math
 import os
 import sys
-from collections import Counter
 
 from PIL import Image, ImageDraw, ImageFilter, ImageFont
 
-LAYOUTS = os.path.abspath(sys.argv[1])
+USAGE = "usage: gen-favorites-artwork.py <layouts-dir>\n\n" \
+        "  e.g. FunKey/board/funkey/rootfs-overlay/usr/games/layouts\n"
 
 # Star gold, kept constant across layouts: it is the one colour that reads as
 # "favorite" regardless of the surrounding theme.
@@ -41,7 +41,7 @@ def draw_star(size, radius, center=None, glow=True):
     img = Image.new("RGBA", (w * SS, h * SS), (0, 0, 0, 0))
     d = ImageDraw.Draw(img)
 
-    cx, cy = center if center else (w / 2, h / 2)
+    cx, cy = center if center is not None else (w / 2, h / 2)
     cx, cy = cx * SS, cy * SS
     r = radius * SS
 
@@ -62,34 +62,51 @@ def draw_star(size, radius, center=None, glow=True):
     return img.resize((w, h), Image.LANCZOS)
 
 
+_FONT_CACHE = {}
+
+
 def load_font(path, size):
-    for candidate in (path, "/usr/share/fonts/truetype/dejavu/DejaVuSans-Bold.ttf"):
-        if candidate and os.path.exists(candidate):
-            try:
-                return ImageFont.truetype(candidate, size)
-            except OSError:
-                continue
-    return ImageFont.load_default()
+    # The fitting loop below asks for ~80 sizes per wordmark; without this that
+    # is 80 reads and parses of the same file.
+    key = (path, size)
+    if key not in _FONT_CACHE:
+        font = ImageFont.load_default()
+        for candidate in (path, "/usr/share/fonts/truetype/dejavu/DejaVuSans-Bold.ttf"):
+            if candidate and os.path.exists(candidate):
+                try:
+                    font = ImageFont.truetype(candidate, size)
+                    break
+                except OSError:
+                    continue
+        _FONT_CACHE[key] = font
+    return _FONT_CACHE[key]
 
 
 def text_size(d, text, font, tracking=0):
+    """Width by advance, height by ink.
+
+    Advancing by the glyph's ink extent would drop the side bearings the font
+    builds into each character, packing the letters together; the tracking here
+    is meant to open the wordmark up, not to replace the font's own spacing.
+    Height stays ink-based because it is used to centre the strip vertically.
+    """
     if not text:
         return 0, 0
     total = 0
     height = 0
     for ch in text:
+        total += d.textlength(ch, font=font) + tracking
         box = d.textbbox((0, 0), ch, font=font)
-        total += box[2] - box[0] + tracking
         height = max(height, box[3] - box[1])
     return total - tracking, height
 
 
 def draw_tracked_text(d, xy, text, font, fill, tracking=0):
+    # Must advance exactly as text_size measures, or the centring drifts.
     x, y = xy
     for ch in text:
         d.text((x, y), ch, font=font, fill=fill)
-        box = d.textbbox((0, 0), ch, font=font)
-        x += box[2] - box[0] + tracking
+        x += d.textlength(ch, font=font) + tracking
 
 
 def wordmark(size, fontpath, color, text="FAVORITES", pad=2, shadow=None):
@@ -127,7 +144,11 @@ def sample_palette(theme_dir):
     base = os.path.join(theme_dir, "collections")
     samples = []
     if os.path.isdir(base):
-        for system in sorted(os.listdir(base))[:6]:
+        # Skip our own output, or a second run samples the backgrounds the
+        # first run wrote and the palette drifts a little further every time.
+        systems = [s for s in sorted(os.listdir(base)) if s != "Favorites"]
+
+        for system in systems[:6]:
             for name in ("bg.png", "system_bg.png", "screenshot.png"):
                 p = os.path.join(base, system, "system_artwork", name)
                 if os.path.exists(p):
@@ -203,9 +224,20 @@ THEMES = {
 
 
 def main():
+    # Exit rather than default to the working directory: silently rendering 41
+    # files into the wrong tree is worse than being told the argument is needed.
+    if len(sys.argv) != 2:
+        sys.stderr.write(USAGE)
+        return 2
+
+    layouts = os.path.abspath(sys.argv[1])
+    if not os.path.isdir(layouts):
+        sys.stderr.write("not a directory: %s\n" % layouts)
+        return 2
+
     made = 0
     for theme, spec in sorted(THEMES.items()):
-        theme_dir = os.path.join(LAYOUTS, theme)
+        theme_dir = os.path.join(layouts, theme)
         if not os.path.isdir(theme_dir):
             print(f"  !! missing theme {theme}")
             continue
@@ -239,7 +271,8 @@ def main():
               f"bg={base} files={len(spec['files'])}")
 
     print(f"\nGenerated {made} files.")
+    return 0
 
 
 if __name__ == "__main__":
-    main()
+    sys.exit(main())
