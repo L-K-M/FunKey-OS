@@ -24,6 +24,7 @@ GOLD_DARK = (240, 156, 18)
 GOLD_EDGE = (140, 84, 6)
 
 SS = 4  # supersampling factor for smooth edges at these small sizes
+FALLBACK_PT = 8  # point size used when nothing fits the strip
 
 
 def star_polygon(cx, cy, outer, inner, points=5, rotation=-math.pi / 2):
@@ -95,6 +96,11 @@ def load_font(path, size):
     return _FONT_CACHE[key]
 
 
+def tracking_for(pt):
+    """Letter-spacing for a point size. One definition, two callers."""
+    return max(1, pt // 12)
+
+
 def text_size(d, text, font, tracking=0):
     """Width by advance, height by ink.
 
@@ -132,16 +138,16 @@ def wordmark(size, fontpath, color, text="FAVORITES", pad=2, shadow=None):
     best, best_track = None, 0
     for pt in range(4, h * SS * 2):
         f = load_font(fontpath, pt)
-        track = max(1, pt // 12)
+        track = tracking_for(pt)
         tw, th = text_size(d, text, f, track)
         if tw > (w - pad * 2) * SS or th > (h - pad) * SS:
             break
         best, best_track = f, track
     if best is None:
-        # Nothing fitted, not even at 4pt. Match the loop's tracking formula so
-        # this wordmark is not the one with no letter-spacing.
-        best = load_font(fontpath, 8)
-        best_track = max(1, 8 // 12)
+        # Nothing fitted, not even at 4pt. Track it like any other size, so this
+        # is not the one wordmark rendered with no letter-spacing.
+        best = load_font(fontpath, FALLBACK_PT)
+        best_track = tracking_for(FALLBACK_PT)
 
     tw, th = text_size(d, text, best, best_track)
     box = d.textbbox((0, 0), text, font=best)
@@ -290,6 +296,13 @@ def main():
               f"bg={base} files={len(spec['files'])}")
 
     print(f"\nGenerated {made} files.")
+
+    # The files exist but the wordmarks on them are unreadable, so a build that
+    # only checks the exit status should not treat this as a clean run.
+    if _WARNED_FONTS:
+        sys.stderr.write("  !! artwork generated with fallback fonts\n")
+        return 1
+
     return 0
 
 
