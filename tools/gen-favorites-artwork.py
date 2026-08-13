@@ -12,7 +12,7 @@ import math
 import os
 import sys
 
-from PIL import Image, ImageDraw, ImageFilter, ImageFont
+from PIL import Image, ImageDraw, ImageFilter, ImageFont, ImageStat
 
 USAGE = "usage: gen-favorites-artwork.py <layouts-dir>\n\n" \
         "  e.g. FunKey/board/funkey/rootfs-overlay/usr/games/layouts\n"
@@ -63,6 +63,7 @@ def draw_star(size, radius, center=None, glow=True):
 
 
 _FONT_CACHE = {}
+_WARNED_FONTS = set()
 
 
 def load_font(path, size):
@@ -70,7 +71,7 @@ def load_font(path, size):
     # is 80 reads and parses of the same file.
     key = (path, size)
     if key not in _FONT_CACHE:
-        font = ImageFont.load_default()
+        font = None
         for candidate in (path, "/usr/share/fonts/truetype/dejavu/DejaVuSans-Bold.ttf"):
             if candidate and os.path.exists(candidate):
                 try:
@@ -78,6 +79,18 @@ def load_font(path, size):
                     break
                 except OSError:
                     continue
+
+        if font is None:
+            # The default is a small bitmap face that ignores the requested
+            # size, so the wordmark comes out an unreadable smear. Say so:
+            # otherwise the run reports success and the art is quietly wrong.
+            if path not in _WARNED_FONTS:
+                _WARNED_FONTS.add(path)
+                sys.stderr.write(
+                    "  !! no usable font for %s, falling back to the bitmap "
+                    "default; wordmarks will be unreadable\n" % (path or "<none>"))
+            font = ImageFont.load_default()
+
         _FONT_CACHE[key] = font
     return _FONT_CACHE[key]
 
@@ -125,7 +138,10 @@ def wordmark(size, fontpath, color, text="FAVORITES", pad=2, shadow=None):
             break
         best, best_track = f, track
     if best is None:
+        # Nothing fitted, not even at 4pt. Match the loop's tracking formula so
+        # this wordmark is not the one with no letter-spacing.
         best = load_font(fontpath, 8)
+        best_track = max(1, 8 // 12)
 
     tw, th = text_size(d, text, best, best_track)
     box = d.textbbox((0, 0), text, font=best)
@@ -142,7 +158,10 @@ def wordmark(size, fontpath, color, text="FAVORITES", pad=2, shadow=None):
 def sample_palette(theme_dir):
     """Average colour of the layout's existing backgrounds, for the gradient."""
     base = os.path.join(theme_dir, "collections")
-    samples = []
+    # Per-image means, averaged evenly: every sample is resized to the same
+    # 16x16, so this matches averaging the pixels themselves. ImageStat avoids
+    # getdata(), which Pillow has deprecated for removal in 14.
+    means = []
     if os.path.isdir(base):
         # Skip our own output, or a second run samples the backgrounds the
         # first run wrote and the palette drifts a little further every time.
@@ -156,16 +175,16 @@ def sample_palette(theme_dir):
                         im = Image.open(p).convert("RGB").resize((16, 16))
                     except OSError:
                         continue
-                    samples.extend(im.getdata())
-    if not samples:
+                    means.append(ImageStat.Stat(im).mean)
+    if not means:
         return (24, 24, 28)
-    n = len(samples)
-    avg = tuple(sum(c[i] for c in samples) // n for i in range(3))
+    n = len(means)
+    avg = tuple(int(sum(m[i] for m in means) / n) for i in range(3))
     # Darken so the menu text on top stays readable.
     return tuple(max(8, int(v * 0.55)) for v in avg)
 
 
-def background(size, base, fontpath):
+def background(size, base):
     w, h = size
     img = Image.new("RGB", (w, h), base)
     d = ImageDraw.Draw(img)
@@ -261,7 +280,7 @@ def main():
             elif kind == "wide":
                 img = tile(size, fontpath, label, with_label=False)
             elif kind == "background":
-                img = background(size, base, fontpath)
+                img = background(size, base)
             elif kind == "wordmark":
                 img = wordmark(size, fontpath, label, shadow=(0, 0, 0, 150))
             img.save(path)
