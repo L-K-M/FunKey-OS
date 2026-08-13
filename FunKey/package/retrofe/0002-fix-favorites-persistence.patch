@@ -1,0 +1,136 @@
+diff --git a/RetroFE/Source/Collection/CollectionInfo.cpp b/RetroFE/Source/Collection/CollectionInfo.cpp
+index 3819919..882875c 100755
+--- a/RetroFE/Source/Collection/CollectionInfo.cpp
++++ b/RetroFE/Source/Collection/CollectionInfo.cpp
+@@ -73,51 +73,76 @@ CollectionInfo::~CollectionInfo()
+     }
+ }
+ 
+-bool CollectionInfo::Save() 
++// Create a single directory. Returns true if it exists as a directory
++// afterwards, whether we created it or somebody else already had.
++static bool makeDirectory(const std::string &dir)
++{
++    struct stat info;
++    if ( stat( dir.c_str(), &info ) == 0 )
++    {
++        return (info.st_mode & S_IFDIR) != 0;
++    }
++
++#if defined(_WIN32) && !defined(__GNUC__)
++    CreateDirectory( dir.c_str(), NULL );
++#elif defined(__MINGW32__)
++    mkdir( dir.c_str() );
++#else
++    mkdir( dir.c_str(), 0755 );
++#endif
++
++    // Re-stat instead of trusting the return code, so that an "already exists"
++    // race with another writer counts as success on every platform.
++    return stat( dir.c_str(), &info ) == 0 && (info.st_mode & S_IFDIR) != 0;
++}
++
++
++// Create every missing component of dir, like "mkdir -p".
++static bool makeDirectoryRecursive(const std::string &dir)
++{
++    // Start at 1 so a leading slash is not mistaken for an empty component.
++    std::string::size_type position = dir.find_first_of("/\\", 1);
++
++    while ( position != std::string::npos )
++    {
++        if ( !makeDirectory( dir.substr( 0, position ) ) )
++        {
++            return false;
++        }
++        position = dir.find_first_of( "/\\", position + 1 );
++    }
++
++    return makeDirectory( dir );
++}
++
++
++bool CollectionInfo::Save()
+ {
+     bool retval = true;
+     if(saveRequest)
+     {
++        // Playlists live under the user path on the writable partition. If it is
++        // unset these would become absolute paths on the read-only rootfs, so
++        // refuse rather than write somewhere unexpected.
++        if(Configuration::userPath.empty())
++        {
++            Logger::write(Logger::ZONE_WARNING, "Collection", "Not saving favorites: user path is not set");
++            return false;
++        }
++
+         std::string dir  = Utils::combinePath(Configuration::userPath, "collections", name, "playlists");
+         std::string file = Utils::combinePath(Configuration::userPath, "collections", name, "playlists/favorites.txt");
+         Logger::write(Logger::ZONE_INFO, "Collection", "Saving " + file);
+ 
+-        Utils::rootfsWritable();
+-
+         std::ofstream filestream;
+         try
+         {
+-            // Create playlists directory if it does not exist yet.
+-            struct stat info;
+-            if ( stat( dir.c_str(), &info ) != 0 )
++            // Create the playlists directory if it does not exist yet. The whole
++            // chain has to be created: collections/<name> is only pre-created for
++            // the subset of systems listed in the "share" script.
++            if ( !makeDirectoryRecursive( dir ) )
+             {
+-#if defined(_WIN32) && !defined(__GNUC__)
+-                if(!CreateDirectory(dir.c_str(), NULL))
+-                {
+-                    if(ERROR_ALREADY_EXISTS != GetLastError())
+-                    {
+-                        Logger::write(Logger::ZONE_WARNING, "Collection", "Could not create directory " + dir);
+-                        Utils::rootfsReadOnly();
+-                        return false;
+-                    }
+-                }
+-#else 
+-#if defined(__MINGW32__)
+-                if(mkdir(dir.c_str()) == -1)
+-#else
+-                if(mkdir(dir.c_str(), 0755) == -1)
+-#endif        
+-                {
+-                    Logger::write(Logger::ZONE_WARNING, "Collection", "Could not create directory " + dir);
+-                    Utils::rootfsReadOnly();
+-                    return false;
+-                }
+-#endif
+-            }
+-            else if ( !(info.st_mode & S_IFDIR) )
+-            {
+-                Logger::write(Logger::ZONE_WARNING, "Collection", dir + " exists, but is not a directory.");
+-                Utils::rootfsReadOnly();
++                Logger::write(Logger::ZONE_WARNING, "Collection", "Could not create directory " + dir);
+                 return false;
+             }
+ 
+@@ -136,16 +161,18 @@ bool CollectionInfo::Save()
+             }
+ 
+             filestream.close();
++
++            // The favorites are now on disk; without this every later Save()
++            // would rewrite the same file again on each playlist change.
++            saveRequest = false;
+         }
+         catch(std::exception &)
+         {
+             Logger::write(Logger::ZONE_ERROR, "Collection", "Save failed: " + file);
+             retval = false;
+         }
+-
+-        Utils::rootfsReadOnly();
+     }
+-    
++
+     return retval;
+ }
+ 
