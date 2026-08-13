@@ -1,0 +1,273 @@
+diff --git a/RetroFE/Source/Collection/CollectionInfo.cpp b/RetroFE/Source/Collection/CollectionInfo.cpp
+index a918f67..9a3e50c 100755
+--- a/RetroFE/Source/Collection/CollectionInfo.cpp
++++ b/RetroFE/Source/Collection/CollectionInfo.cpp
+@@ -221,6 +221,27 @@ void CollectionInfo::addSubcollection(CollectionInfo *newinfo)
+     items.insert(items.begin(), newinfo->items.begin(), newinfo->items.end());
+ }
+ 
++
++// Merge a subcollection's playlist into this collection's playlist of the same
++// name. addSubcollection() has already merged the items themselves and they are
++// the very same Item objects, so only playlist membership needs copying.
++void CollectionInfo::addSubcollectionPlaylist(CollectionInfo *newinfo, std::string playlist)
++{
++    Playlists_T::iterator source = newinfo->playlists.find(playlist);
++    Playlists_T::iterator target = playlists.find(playlist);
++
++    if(source == newinfo->playlists.end() || !source->second) return;
++    if(target == playlists.end() || !target->second) return;
++
++    for(std::vector<Item *>::iterator it = source->second->begin(); it != source->second->end(); it++)
++    {
++        if(std::find(target->second->begin(), target->second->end(), *it) == target->second->end())
++        {
++            target->second->push_back(*it);
++        }
++    }
++}
++
+ bool CollectionInfo::itemIsLess(Item *lhs, Item *rhs)
+ {
+     if(lhs->leaf && !rhs->leaf) return true;
+diff --git a/RetroFE/Source/Collection/CollectionInfo.h b/RetroFE/Source/Collection/CollectionInfo.h
+index 4620e73..aabc559 100755
+--- a/RetroFE/Source/Collection/CollectionInfo.h
++++ b/RetroFE/Source/Collection/CollectionInfo.h
+@@ -31,6 +31,7 @@ public:
+     void sortItems();
+     void sortPlaylists();
+     void addSubcollection(CollectionInfo *info);
++    void addSubcollectionPlaylist(CollectionInfo *info, std::string playlist);
+     void extensionList(std::vector<std::string> &extensions);
+     std::string name;
+     std::string lowercaseName();
+diff --git a/RetroFE/Source/Graphics/Page.cpp b/RetroFE/Source/Graphics/Page.cpp
+index 9e623e7..81f51be 100755
+--- a/RetroFE/Source/Graphics/Page.cpp
++++ b/RetroFE/Source/Graphics/Page.cpp
+@@ -1202,23 +1202,67 @@ void Page::togglePlaylist()
+ }
+ 
+ 
++// The collection whose favorites.txt owns the selected game. On a normal system
++// page this is the page's own collection. On a collection aggregated from .sub
++// files -- the Favorites menu entry -- the page shows games belonging to other
++// collections, and their favorites must be written back to the system they came
++// from rather than to the aggregate.
++CollectionInfo *Page::favoritesOwner()
++{
++    CollectionInfo *collection = collections_.back().collection;
++
++    if(selectedItem_ && selectedItem_->collectionInfo)
++    {
++        return selectedItem_->collectionInfo;
++    }
++
++    return collection;
++}
++
++
+ void Page::removePlaylist()
+ {
+     if(!selectedItem_) return;
+ 
+     MenuInfo_S &info = collections_.back();
+     CollectionInfo *collection = info.collection;
++    CollectionInfo *owner      = favoritesOwner();
+ 
+-    std::vector<Item *> *items = collection->playlists["favorites"];
+-    std::vector<Item *>::iterator it = std::find(items->begin(), items->end(), selectedItem_);
++    bool changed = false;
+ 
+-    if(it != items->end())
++    // Drop it from the page being viewed so the menu updates immediately...
++    std::vector<Item *> *items = favoritesOf(collection);
++    if(items)
+     {
+-        items->erase(it);
+-        collection->sortPlaylists();
+-        collection->saveRequest = true;
++        std::vector<Item *>::iterator it = std::find(items->begin(), items->end(), selectedItem_);
++        if(it != items->end())
++        {
++            items->erase(it);
++            collection->sortPlaylists();
++            changed = true;
++        }
+     }
+-    collection->Save();
++
++    // ...and from the owning collection, which is the one that gets saved. On a
++    // normal page these are the same object and this is a no-op.
++    if(owner != collection)
++    {
++        std::vector<Item *> *owned = favoritesOf(owner);
++        if(owned)
++        {
++            std::vector<Item *>::iterator it = std::find(owned->begin(), owned->end(), selectedItem_);
++            if(it != owned->end())
++            {
++                owned->erase(it);
++                owner->sortPlaylists();
++                changed = true;
++            }
++        }
++    }
++
++    if(changed) owner->saveRequest = true;
++
++    owner->Save();
+ }
+ 
+ 
+@@ -1228,15 +1272,34 @@ void Page::addPlaylist()
+ 
+     MenuInfo_S &info = collections_.back();
+     CollectionInfo *collection = info.collection;
++    CollectionInfo *owner      = favoritesOwner();
++
++    if(playlist_->first == "favorites") return;
++
++    bool changed = false;
+ 
+-    std::vector<Item *> *items = collection->playlists["favorites"];
+-    if(playlist_->first != "favorites" && std::find(items->begin(), items->end(), selectedItem_) == items->end())
++    std::vector<Item *> *items = favoritesOf(collection);
++    if(items && std::find(items->begin(), items->end(), selectedItem_) == items->end())
+     {
+         items->push_back(selectedItem_);
+         collection->sortPlaylists();
+-        collection->saveRequest = true;
++        changed = true;
+     }
+-    collection->Save();
++
++    if(owner != collection)
++    {
++        std::vector<Item *> *owned = favoritesOf(owner);
++        if(owned && std::find(owned->begin(), owned->end(), selectedItem_) == owned->end())
++        {
++            owned->push_back(selectedItem_);
++            owner->sortPlaylists();
++            changed = true;
++        }
++    }
++
++    if(changed) owner->saveRequest = true;
++
++    owner->Save();
+ }
+ 
+ 
+diff --git a/RetroFE/Source/Graphics/Page.h b/RetroFE/Source/Graphics/Page.h
+index bfa6107..5b63ccf 100755
+--- a/RetroFE/Source/Graphics/Page.h
++++ b/RetroFE/Source/Graphics/Page.h
+@@ -123,6 +123,7 @@ public:
+ 
+ private:
+     void playlistChange();
++    CollectionInfo *favoritesOwner();
+     std::string collectionName_;
+     Configuration &config_;
+ 
+diff --git a/RetroFE/Source/RetroFE.cpp b/RetroFE/Source/RetroFE.cpp
+index 09984c3..fcd1ccf 100755
+--- a/RetroFE/Source/RetroFE.cpp
++++ b/RetroFE/Source/RetroFE.cpp
+@@ -1460,11 +1460,20 @@ CollectionInfo *RetroFE::getCollection(std::string collectionName)
+     DIR *dp;
+     struct dirent *dirp;
+ 
++    std::vector<CollectionInfo *> subcollections;
++
+     std::string path = Utils::combinePath( Configuration::absolutePath, "collections", collectionName );
+     dp = opendir( path.c_str( ) );
+ 
++    // A menu.txt entry naming a collection that has no directory would otherwise
++    // walk a NULL DIR* below.
++    if ( dp == NULL )
++    {
++        Logger::write( Logger::ZONE_WARNING, "RetroFE", "Could not read collection directory \"" + path + "\"" );
++    }
++
+     // Loading sub collection files
+-    while ( (dirp = readdir( dp )) != NULL )
++    while ( dp != NULL && (dirp = readdir( dp )) != NULL )
+     {
+         std::string file = dirp->d_name;
+ 
+@@ -1484,10 +1493,12 @@ CollectionInfo *RetroFE::getCollection(std::string collectionName)
+                 collection->addSubcollection( subcollection );
+                 subcollection->subsSplit = subsSplit;
+                 cib.injectMetadata( subcollection );
++                subcollections.push_back( subcollection );
+             }
+         }
+     }
+-    closedir( dp );
++
++    if ( dp != NULL ) closedir( dp );
+ 
+     bool menuSort = true;
+     config_.getProperty( "collections." + collectionName + ".list.menuSort", menuSort );
+@@ -1501,6 +1512,58 @@ CollectionInfo *RetroFE::getCollection(std::string collectionName)
+     mp.buildMenuItems( collection, menuSort);
+ 
+     cib.addPlaylists( collection );
++
++    // A collection assembled purely from .sub files -- the Favorites menu entry
++    // -- owns no favorites of its own, because games are favorited inside the
++    // system they belong to. Pull each subcollection's favorites in so they
++    // show up here, which keeps each system's favorites.txt the single source
++    // of truth instead of maintaining a second, global list that can drift.
++    for ( std::vector<CollectionInfo *>::iterator it = subcollections.begin( ); it != subcollections.end( ); it++ )
++    {
++        cib.addPlaylists( *it );
++        collection->addSubcollectionPlaylist( *it, "favorites" );
++    }
++
++    // Such a collection lists only those favorites, never the full set of games
++    // it merged in order to find them. Without this the "all" playlist would be
++    // every game on the device, and it is what the menu falls back to: an empty
++    // favorites playlist is refused by selectPlaylist(), so a user who has not
++    // favorited anything yet would open Favorites onto their entire library.
++    bool favoritesOnly = false;
++    config_.getProperty( "collections." + collectionName + ".list.favoritesOnly", favoritesOnly );
++
++    if ( favoritesOnly )
++    {
++        CollectionInfo::Playlists_T::iterator favorites = collection->playlists.find( "favorites" );
++        CollectionInfo::Playlists_T::iterator all       = collection->playlists.find( "all" );
++
++        if ( favorites != collection->playlists.end( ) && favorites->second &&
++             all       != collection->playlists.end( ) && all->second == &collection->items )
++        {
++            // Point "all" at its own vector rather than at items. items has to
++            // keep listing every merged game because the collection destructor
++            // frees exactly what is in it, so narrowing items directly would
++            // leak every game that is not a favorite. The destructor deletes any
++            // playlist vector that is not items, so this one is freed with the
++            // collection.
++            //
++            // Built by filtering items rather than by copying the favorites
++            // playlist, because items is already sorted and sortPlaylists()
++            // below orders every other playlist to match whatever "all" holds.
++            std::vector<Item *> *shown = new std::vector<Item *>( );
++
++            for ( std::vector<Item *>::iterator it = collection->items.begin( ); it != collection->items.end( ); it++ )
++            {
++                if ( std::find( favorites->second->begin( ), favorites->second->end( ), *it ) != favorites->second->end( ) )
++                {
++                    shown->push_back( *it );
++                }
++            }
++
++            all->second = shown;
++        }
++    }
++
+     collection->sortPlaylists( );
+ 
+     // Add extra info, if available
