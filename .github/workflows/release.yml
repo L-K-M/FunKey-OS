@@ -11,9 +11,9 @@ on:
   # since a release has to point at a fixed commit.
   workflow_dispatch:
 
-# Needed to create the release and upload assets to it.
-permissions:
-  contents: write
+# Deliberately not granted workflow-wide: the build job compiles a great deal of
+# third-party source, and it has no reason to hold write access to the
+# repository. Only the publish job below gets it.
 
 # Unlike the build workflow, do not cancel: a superseded release build is still
 # a release someone may be waiting on.
@@ -31,7 +31,7 @@ jobs:
         if: ${{ github.ref_type != 'tag' }}
         run: |
           echo "This workflow publishes a release and must run on a tag."
-          echo "Got ${{ github.ref }}. Re-run it with a tag selected as the ref."
+          echo "Got $GITHUB_REF. Re-run it with a tag selected as the ref."
           exit 1
 
   # Build through the ordinary build workflow rather than repeating its steps
@@ -43,6 +43,9 @@ jobs:
   publish:
     needs: build
     runs-on: ubuntu-latest
+    # The only job that writes anything.
+    permissions:
+      contents: write
     steps:
       # The build workflow uploads images/ and br.log as one artifact, rooted at
       # the repository directory, so the images arrive under build/images/.
@@ -72,10 +75,25 @@ jobs:
           See the [README](https://github.com/L-K-M/FunKey-OS#install) for how to install or update.
           NOTES
 
-          gh release create "$TAG" \
-            --repo "$GITHUB_REPOSITORY" \
-            --title "$TAG" \
-            --notes-file notes.md \
-            build/images/FunKey-sdcard-DrUm78.img \
-            build/images/FunKey-rootfs-DrUm78.fwu \
+          assets=(
+            build/images/FunKey-sdcard-DrUm78.img
+            build/images/FunKey-rootfs-DrUm78.fwu
             build/images/FunKey-sdk-DrUm78.tar.gz
+          )
+
+          # Re-runnable. gh release create refuses a tag that already has a
+          # release, which would otherwise mean the first partial failure poisons
+          # the tag for good -- and every retry here costs another full build.
+          if gh release view "$TAG" --repo "$GITHUB_REPOSITORY" >/dev/null 2>&1; then
+            echo "Release $TAG already exists; replacing its assets."
+            gh release upload "$TAG" \
+              --repo "$GITHUB_REPOSITORY" \
+              --clobber \
+              "${assets[@]}"
+          else
+            gh release create "$TAG" \
+              --repo "$GITHUB_REPOSITORY" \
+              --title "$TAG" \
+              --notes-file notes.md \
+              "${assets[@]}"
+          fi
