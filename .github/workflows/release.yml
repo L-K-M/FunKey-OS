@@ -3,15 +3,24 @@ name: Release
 # Publishes the SD card image, the firmware update file and the SDK as a GitHub
 # Release, so getting a build needs neither a two-hour compile nor a GitHub
 # account digging through a workflow run.
+#
+# Deliberately NOT triggered by pushing a tag. It was, and pushing
+# FunKey-OS-3.0.0 published images that had never been booted on hardware; one
+# of them left a console showing a grey screen at power-on. Publishing has to be
+# a decision someone makes after testing a build, not a side effect of tagging
+# one. Restore the trigger below once a build has been verified on a device.
+#
+#  push:
+#    tags:
+#      # Upstream's release tags are FunKey-OS-X.Y.Z, and the version the OS
+#      # reports tracks them. Matching that rather than inventing a v-prefix
+#      # keeps a tag here comparable with the release it descends from.
+#      - 'FunKey-OS-*'
 on:
-  push:
-    tags:
-      # Upstream's release tags are FunKey-OS-X.Y.Z, and the version the OS
-      # reports tracks them. Matching that rather than inventing a v-prefix
-      # keeps a tag here comparable with the release it descends from.
-      - 'FunKey-OS-*'
   # Dispatch this with a tag selected as the ref; it refuses to run on a branch,
-  # since a release has to point at a fixed commit.
+  # since a release has to point at a fixed commit. The check job below still
+  # enforces the FunKey-OS-* name, so this is the only way to publish and it
+  # still cannot publish from a branch or an unrelated tag.
   workflow_dispatch:
 
 # Restrict every job, then grant write to publish alone. Omitting this block
@@ -35,8 +44,8 @@ jobs:
   check:
     runs-on: ubuntu-latest
     steps:
-      # push is filtered to FunKey-OS-*, but a dispatch can select any ref, and
-      # the repository carries feature tags as well as release ones. Without the
+      # Dispatch is now the only trigger, and it can select any ref: a branch,
+      # or one of the feature tags this repository also carries. Without the
       # name check, dispatching on one of those would build for two hours and
       # then publish a public release named after it.
       - name: Refuse to release anything but a release tag
