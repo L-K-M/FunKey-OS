@@ -40,21 +40,29 @@ jobs:
 
       # A container that builds but points at the wrong sources is the failure
       # that is easiest to miss, because nothing goes wrong until hours later.
+      # Compared against GITHUB_REPOSITORY rather than a literal, so this
+      # survives a rename and tells a fork that its Dockerfile still points
+      # here -- which is the same bug, just someone else's copy of it.
+      # No -C: the image's WORKDIR is already the clone.
       - name: Check it cloned this repository
         run: |
-          remote=$(docker run --rm funkey-os-build-env \
-            git -C /home/funkey/FunKey-OS remote get-url origin)
-          echo "origin: $remote"
+          remote=$(docker run --rm funkey-os-build-env git remote get-url origin)
+          echo "origin:     $remote"
+          echo "expected:   $GITHUB_REPOSITORY"
           case "$remote" in
-            *L-K-M/FunKey-OS*) ;;
-            *) echo "::error::container cloned $remote, not this fork"; exit 1 ;;
+            *"$GITHUB_REPOSITORY"*) ;;
+            *) echo "::error::container cloned $remote, not $GITHUB_REPOSITORY"; exit 1 ;;
           esac
 
       # The Makefile is what CMD runs, and Favorites is what this fork adds.
+      #
+      # Note this inspects what the image cloned, which is the remote's default
+      # branch at build time -- not this PR's tree. That is the point: it checks
+      # the container is usable, not that the branch is correct. A PR that moved
+      # the Favorites collection would not be caught here, and should not be.
       - name: Check the sources look right
         run: |
           docker run --rm funkey-os-build-env sh -c '
-            cd /home/funkey/FunKey-OS &&
             test -f Makefile &&
             test -d "FunKey/board/funkey/rootfs-overlay/usr/games/collections/Favorites" &&
             echo "Makefile and Favorites collection present"'
