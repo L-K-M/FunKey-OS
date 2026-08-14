@@ -35,11 +35,15 @@ jobs:
   check:
     runs-on: ubuntu-latest
     steps:
-      - name: Refuse to release anything but a tag
-        if: ${{ github.ref_type != 'tag' }}
+      # push is filtered to FunKey-OS-*, but a dispatch can select any ref, and
+      # the repository carries feature tags as well as release ones. Without the
+      # name check, dispatching on one of those would build for two hours and
+      # then publish a public release named after it.
+      - name: Refuse to release anything but a release tag
+        if: ${{ github.ref_type != 'tag' || !startsWith(github.ref_name, 'FunKey-OS-') }}
         run: |
-          echo "This workflow publishes a release and must run on a tag."
-          echo "Got $GITHUB_REF. Re-run it with a tag selected as the ref."
+          echo "This workflow publishes a release and must run on a FunKey-OS-* tag."
+          echo "Got $GITHUB_REF. Re-run it with a release tag selected as the ref."
           exit 1
 
   # Build through the ordinary build workflow rather than repeating its steps
@@ -107,7 +111,10 @@ jobs:
           # release, which would otherwise mean the first partial failure poisons
           # the tag for good -- and every retry here costs another full build.
           if gh release view "$TAG" --repo "$GITHUB_REPOSITORY" >/dev/null 2>&1; then
-            echo "Release $TAG already exists; replacing its assets."
+            echo "Release $TAG already exists; refreshing its notes and assets."
+            gh release edit "$TAG" \
+              --repo "$GITHUB_REPOSITORY" \
+              --notes-file notes.md
             gh release upload "$TAG" \
               --repo "$GITHUB_REPOSITORY" \
               --clobber \
