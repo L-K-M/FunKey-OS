@@ -64,6 +64,7 @@ Insert the card into the console and power it on.
 Updating replaces the OS only — games, saves and favorites are kept.
 
 1. Get `FunKey-rootfs-DrUm78.fwu` by [building from source](#build-from-source).
+   Read the warning above first — these images are unverified on hardware.
 2. Connect the console to your computer over USB.
 3. In the game launcher press **ON/OFF**, select **MOUNT USB**, press **A** twice.
 4. Copy the `.fwu` onto the drive that appears.
@@ -85,8 +86,10 @@ boot and opens the recovery menu instead of booting the OS.
 2. Delete the `.fwu` you copied, and put a known-good one in its place —
    [DrUm78's releases](https://github.com/DrUm78/FunKey-OS/releases), or
    whatever build the console shipped with.
-3. Press **A** again to unmount. Unmounting is what runs `swupdate` on any
-   `/mnt/FunKey-*.fwu`.
+3. Eject the drive on your computer, then press **A** again to unmount — that
+   is what runs `swupdate` on any `/mnt/FunKey-*.fwu`. Eject first: flashing
+   starts the moment you unmount, so a copy the host has not flushed would be
+   flashed truncated.
 4. Select **EXIT RECOVERY**.
 
 The **INFO** entry is worth checking first: it mounts `p2` read-only and prints
