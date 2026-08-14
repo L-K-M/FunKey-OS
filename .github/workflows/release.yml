@@ -1,0 +1,138 @@
+name: Release
+
+# Publishes the SD card image, the firmware update file and the SDK as a GitHub
+# Release, so getting a build needs neither a two-hour compile nor a GitHub
+# account digging through a workflow run.
+#
+# Deliberately NOT triggered by pushing a tag. It was, and pushing
+# FunKey-OS-3.0.0 published images that had never been booted on hardware --
+# images built for the wrong console, which left an RG Nano at a grey screen.
+# Publishing has to be a decision someone makes after testing a build on the
+# device it names, not a side effect of tagging one. Restore the trigger below
+# once a build has been verified on hardware.
+#
+#  push:
+#    tags:
+#      # Upstream's release tags are FunKey-OS-X.Y.Z, and the version the OS
+#      # reports tracks them. Matching that rather than inventing a v-prefix
+#      # keeps a tag here comparable with the release it descends from.
+#      - 'FunKey-OS-*'
+on:
+  # Dispatch this with a tag selected as the ref; it refuses to run on a branch,
+  # since a release has to point at a fixed commit. The check job below still
+  # enforces the FunKey-OS-* name, so this is the only way to publish and it
+  # still cannot publish from a branch or an unrelated tag.
+  workflow_dispatch:
+
+# Restrict every job, then grant write to publish alone. Omitting this block
+# would not have been neutral: jobs would inherit the repository default, which
+# is read-write on anything created before GitHub changed it, so the build --
+# which compiles a great deal of third-party source -- would quietly hold write
+# access to the repository. A called workflow runs with the calling job's token,
+# so this covers the build too.
+permissions:
+  contents: read
+
+# Unlike the build workflow, do not cancel: a superseded release build is still
+# a release someone may be waiting on.
+concurrency:
+  group: release-${{ github.ref }}
+  cancel-in-progress: false
+
+jobs:
+  # Cheap gate so a mistaken dispatch fails in seconds rather than after the
+  # build has run for two hours.
+  check:
+    runs-on: ubuntu-latest
+    steps:
+      # push is filtered to FunKey-OS-*, but a dispatch can select any ref, and
+      # the repository carries feature tags as well as release ones. Without the
+      # name check, dispatching on one of those would build for two hours and
+      # then publish a public release named after it.
+      - name: Refuse to release anything but a release tag
+        if: ${{ github.ref_type != 'tag' || !startsWith(github.ref_name, 'FunKey-OS-') }}
+        run: |
+          echo "This workflow publishes a release and must run on a FunKey-OS-* tag."
+          echo "Got $GITHUB_REF. Re-run it with a release tag selected as the ref."
+          exit 1
+
+  # Build through the ordinary build workflow rather than repeating its steps
+  # here, so a release can never be built differently from everything else.
+  build:
+    needs: check
+    uses: ./.github/workflows/build.yml
+
+  publish:
+    needs: build
+    runs-on: ubuntu-latest
+    # The only job that writes anything.
+    permissions:
+      contents: write
+    steps:
+      # The build workflow uploads images/ and br.log as one artifact, rooted at
+      # the repository directory, so the images arrive under build/images/.
+      - name: Download the build
+        uses: actions/download-artifact@v4
+        with:
+          name: funkey-os-images
+          path: build
+
+      # Fail here, with the directory listing, rather than letting gh report a
+      # bare "file not found" after the build has already run for two hours.
+      - name: Check the expected images are there
+        run: |
+          ls -lh build/images/
+          missing=0
+          for f in FunKey-sdcard-Favorites_RG_Nano.img FunKey-rootfs-Favorites_RG_Nano.fwu FunKey-sdk-Favorites.tar.gz; do
+            if [ ! -f "build/images/$f" ]; then
+              echo "::error::expected image missing from the build: $f"
+              missing=1
+            fi
+          done
+          [ "$missing" -eq 0 ] || {
+            echo "The Makefile's image names and this workflow have diverged."
+            exit 1
+          }
+
+      - name: Publish the release
+        env:
+          GH_TOKEN: ${{ github.token }}
+          TAG: ${{ github.ref_name }}
+        run: |
+          cat > notes.md <<'NOTES'
+          FunKey OS with Favorites.
+
+          | File | What it is |
+          | --- | --- |
+          | `FunKey-sdcard-Favorites_RG_Nano.img` | Full SD card image. Write it to a card to install. This erases the card. |
+          | `FunKey-rootfs-Favorites_RG_Nano.fwu` | Firmware update. Copy it over USB to update in place, keeping games and saves. |
+          | `FunKey-sdk-Favorites.tar.gz` | Cross-toolchain, needed only to build software for the console. |
+
+          See the [README](https://github.com/L-K-M/FunKey-OS#install) for how to install or update.
+          NOTES
+
+          assets=(
+            build/images/FunKey-sdcard-Favorites_RG_Nano.img
+            build/images/FunKey-rootfs-Favorites_RG_Nano.fwu
+            build/images/FunKey-sdk-Favorites.tar.gz
+          )
+
+          # Re-runnable. gh release create refuses a tag that already has a
+          # release, which would otherwise mean the first partial failure poisons
+          # the tag for good -- and every retry here costs another full build.
+          if gh release view "$TAG" --repo "$GITHUB_REPOSITORY" >/dev/null 2>&1; then
+            echo "Release $TAG already exists; refreshing its notes and assets."
+            gh release edit "$TAG" \
+              --repo "$GITHUB_REPOSITORY" \
+              --notes-file notes.md
+            gh release upload "$TAG" \
+              --repo "$GITHUB_REPOSITORY" \
+              --clobber \
+              "${assets[@]}"
+          else
+            gh release create "$TAG" \
+              --repo "$GITHUB_REPOSITORY" \
+              --title "$TAG" \
+              --notes-file notes.md \
+              "${assets[@]}"
+          fi

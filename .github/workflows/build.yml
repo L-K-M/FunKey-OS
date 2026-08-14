@@ -1,36 +1,95 @@
 name: FunKey-OS Build
 
 on:
+  # Building the whole OS from source for hours to check a documentation typo is
+  # not worth a runner's time. A change touching both docs and anything else
+  # still builds: paths-ignore only skips when every changed file matches.
+  # Spelled out twice rather than shared via a YAML anchor, which the Actions
+  # workflow parser does not support.
   push:
     branches: [ master ]
+    paths-ignore:
+      - '**.md'
+      - 'LICENSE'
+      - 'docker/**'
   pull_request:
     branches: [ master ]
+    paths-ignore:
+      - '**.md'
+      - 'LICENSE'
+      - 'docker/**'
+  # No branch filter here: workflow_dispatch does not support one, and the ref
+  # is chosen when the run is started.
   workflow_dispatch:
-    branches: [ master ]
+  # Lets release.yml build through this workflow rather than keeping a second
+  # copy of the same steps in step with this one. Path filters do not apply to
+  # workflow_call, so a release still builds even for a docs-only tag.
+  workflow_call:
+
+# A full buildroot run is long and expensive, so do not let pushes pile up
+# several of them against the same ref.
+concurrency:
+  group: build-${{ github.ref }}
+  cancel-in-progress: true
 
 jobs:
   build:
 
-    runs-on: ubuntu-20.04
+    runs-on: ubuntu-22.04
+    # Building the SDK toolchain and then the whole OS from source takes hours.
+    # 360 is the hosted-runner maximum, and also the default: stated here so the
+    # ceiling is visible to anyone reading the file rather than implied.
+    timeout-minutes: 360
 
     steps:
-    - uses: actions/checkout@v2
+    - uses: actions/checkout@v4
+
+    # Buildroot needs ~12GB for sources and build by-products (see README) and a
+    # stock runner does not have much more than that free. Dropping toolchains
+    # this build never uses buys back well over 20GB.
+    - name: Free up disk space
+      run: |
+        df -h /
+        sudo rm -rf /usr/local/lib/android /usr/share/dotnet /opt/ghc \
+                    /usr/local/share/boost /usr/local/.ghcup \
+                    /usr/local/lib/node_modules /opt/hostedtoolcache
+        sudo apt-get -y purge '^llvm-.*' '^dotnet-.*' '^mongodb-.*' azure-cli || true
+        sudo apt-get -y autoremove
+        sudo apt-get -y clean
+        df -h /
+
     - name: Install dependencies
       run: |
         sudo apt-get update
-        sudo apt-get install -y -q --no-install-recommends make binutils build-essential gcc g++ patch bzip2 perl cpio unzip rsync file bc wget python python-dev xxd libncurses5-dev cvs git mercurial rsync liblscp-dev subversion python3 python3-dev python3-distutils python3-setuptools ca-certificates openssh-client expect locales sudo procps
+        # python/python-dev are Python 2 and no longer exist on 22.04; buildroot
+        # builds with python3, which is listed below.
+        sudo apt-get install -y -q --no-install-recommends make binutils build-essential gcc g++ patch bzip2 perl cpio unzip rsync file bc wget xxd libncurses5-dev cvs git mercurial liblscp-dev subversion python3 python3-dev python3-distutils python3-setuptools ca-certificates openssh-client expect locales sudo procps
         sudo apt-get -y autoremove
         sudo apt-get -y clean
         sudo rm -rf /var/lib/apt/lists/*
         sudo sed -i 's/# \(en_US.UTF-8\)/\1/' /etc/locale.gen
         sudo locale-gen --purge --lang en_US.UTF-8
+
     - name: Build SDK
       run: make sdk
+
     - name: Build FunKey-OS
       run: make
-    - uses: actions/upload-artifact@v2
+
+    - name: List build results
+      if: always()
+      run: |
+        df -h /
+        ls -lh images/ || echo "no images directory"
+
+    # The .img is the flashable SD card image and the .fwu is the OS update
+    # file; br.log is the buildroot log, which is what you need when a build
+    # fails. Uploaded even on failure so a red run is diagnosable.
+    - uses: actions/upload-artifact@v4
+      if: always()
       with:
-        name: Upload artifacts
+        name: funkey-os-images
+        if-no-files-found: warn
         path: |
           images/*
           br.log

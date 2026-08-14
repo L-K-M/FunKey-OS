@@ -1,0 +1,116 @@
+diff --git a/RetroFE/Source/Control/UserInput.cpp b/RetroFE/Source/Control/UserInput.cpp
+index 7b32c3d..3246612 100755
+--- a/RetroFE/Source/Control/UserInput.cpp
++++ b/RetroFE/Source/Control/UserInput.cpp
+@@ -154,6 +154,7 @@ bool UserInput::initialize()
+     MapKey("prevPlaylist", KeyCodePrevPlaylist, false);
+     MapKey("addPlaylist", KeyCodeAddPlaylist, false);
+     MapKey("removePlaylist", KeyCodeRemovePlaylist, false);
++    MapKey("togglePlaylist", KeyCodeTogglePlaylist, false);
+     MapKey("random", KeyCodeRandom, false);
+ 
+     bool retVal = true;
+diff --git a/RetroFE/Source/Control/UserInput.h b/RetroFE/Source/Control/UserInput.h
+index ed73e49..0ff1851 100755
+--- a/RetroFE/Source/Control/UserInput.h
++++ b/RetroFE/Source/Control/UserInput.h
+@@ -54,6 +54,7 @@ public:
+         KeyCodeMenu,
+         KeyCodeAddPlaylist,
+         KeyCodeRemovePlaylist,
++        KeyCodeTogglePlaylist,
+         KeyCodeAdminMode,
+         KeyCodeHideItem,
+         KeyCodeQuit,
+diff --git a/RetroFE/Source/Graphics/Page.cpp b/RetroFE/Source/Graphics/Page.cpp
+index 5a5f233..9e623e7 100755
+--- a/RetroFE/Source/Graphics/Page.cpp
++++ b/RetroFE/Source/Graphics/Page.cpp
+@@ -1159,6 +1159,49 @@ void Page::draw()
+ }
+ 
+ 
++// Look up the favorites playlist without creating it. Using
++// playlists["favorites"] here would insert a NULL entry for any collection
++// built without playlists, which the callers would then dereference.
++static std::vector<Item *> *favoritesOf(CollectionInfo *collection)
++{
++    CollectionInfo::Playlists_T::iterator it = collection->playlists.find("favorites");
++
++    if(it == collection->playlists.end()) return NULL;
++
++    return it->second;
++}
++
++
++// True when the selected item is currently in the favorites playlist.
++bool Page::isFavorite()
++{
++    if(!selectedItem_ || collections_.size() == 0) return false;
++
++    std::vector<Item *> *items = favoritesOf(collections_.back().collection);
++
++    if(!items) return false;
++
++    return std::find(items->begin(), items->end(), selectedItem_) != items->end();
++}
++
++
++// Add the selected item to the favorites, or remove it if it is already there,
++// so that a single key covers both directions.
++void Page::togglePlaylist()
++{
++    if(!selectedItem_) return;
++
++    if(isFavorite())
++    {
++        removePlaylist();
++    }
++    else
++    {
++        addPlaylist();
++    }
++}
++
++
+ void Page::removePlaylist()
+ {
+     if(!selectedItem_) return;
+diff --git a/RetroFE/Source/Graphics/Page.h b/RetroFE/Source/Graphics/Page.h
+index 6392144..bfa6107 100755
+--- a/RetroFE/Source/Graphics/Page.h
++++ b/RetroFE/Source/Graphics/Page.h
+@@ -110,6 +110,8 @@ public:
+     void setText( std::string text, int id );
+     void addPlaylist();
+     void removePlaylist();
++    void togglePlaylist();
++    bool isFavorite();
+     void reallocateMenuSpritePoints();
+     bool isMenuScrolling();
+     bool isMenuScrollForward();
+diff --git a/RetroFE/Source/RetroFE.cpp b/RetroFE/Source/RetroFE.cpp
+index 8857a95..09984c3 100755
+--- a/RetroFE/Source/RetroFE.cpp
++++ b/RetroFE/Source/RetroFE.cpp
+@@ -1256,6 +1256,7 @@ RetroFE::RETROFE_STATE RetroFE::processUserInput( Page *page )
+             !input_.keystate(UserInput::KeyCodePrevPlaylist) &&
+             !input_.keystate(UserInput::KeyCodeAddPlaylist) &&
+             !input_.keystate(UserInput::KeyCodeRemovePlaylist) &&
++            !input_.keystate(UserInput::KeyCodeTogglePlaylist) &&
+             !input_.keystate(UserInput::KeyCodeRandom) &&
+             !input_.keystate(UserInput::KeyCodeMenu)) )
+         {
+@@ -1325,6 +1326,12 @@ RetroFE::RETROFE_STATE RetroFE::processUserInput( Page *page )
+                 page->addPlaylist( );
+                 state = RETROFE_PLAYLIST_REQUEST;
+             }
++            if ( input_.newKeyPressed(UserInput::KeyCodeTogglePlaylist) )
++            {
++                attract_.reset( );
++                page->togglePlaylist( );
++                state = RETROFE_PLAYLIST_REQUEST;
++            }
+             if ( input_.keystate(UserInput::KeyCodeRandom) )
+             {
+                 attract_.reset( );

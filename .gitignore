@@ -4,3 +4,5 @@
 br.log
 /images/
 *.so
+__pycache__/
+*.pyc

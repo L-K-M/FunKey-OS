@@ -1,179 +1,200 @@
-<!-- ![FunKey OS Build](https://github.com/FunKey-Project/FunKey-OS/workflows/FunKey-OS%20Build/badge.svg) -->
-# FunKey OS
+[![FunKey-OS Build](https://github.com/L-K-M/FunKey-OS/actions/workflows/build.yml/badge.svg?branch=master)](https://github.com/L-K-M/FunKey-OS/actions/workflows/build.yml?query=branch%3Amaster)
 
-## Intro
-This repository contains all the sources required to build FunKey OS, the Open-Source firmware at the heart of the [FunKey S retro-gaming console](https://www.funkey-project.com/).
+# FunKey OS — Favorites fork (Anbernic RG Nano)
 
-As the FunKey-S console is based on a sophisticated [Allwinner V3s ARM Cortex-A7 1.2GHz CPU](http://www.allwinnertech.com/index.php?c=product&a=index&id=38), an Operating System is mandatory in order to access all the hardware resources without re-inventing the wheel.
+FunKey OS for the **Anbernic RG Nano**, with a **Favorites** feature added.
 
-FunKey OS is based on Linux, and is built from scratch using the [buildroot](http://nightly.buildroot.org/) tool that simplifies and automates the process of building a complete Linux system for an embedded system like this.
+Forked from the `rg_nano` branch of
+[DrUm78/FunKey-OS](https://github.com/DrUm78/FunKey-OS/tree/rg_nano), itself a
+fork of the original
+[FunKey-Project/FunKey-OS](https://github.com/FunKey-Project/FunKey-OS).
 
-Technically, Funkey OS is a [buildroot (v2) based external tree](https://buildroot.org/downloads/manual/manual.html#outside-br-custom) for building the bootloader, the Linux kernel and user utilities, as well as the optimized retro-game launcher and console emulators.
+> ## ⚠️ Not yet verified on hardware
+>
+> **This build has never been booted on a device.** Do not install it on a
+> console you care about; use
+> [DrUm78's releases](https://github.com/DrUm78/FunKey-OS/releases) for that.
+>
+> If you have installed something from here and the console shows a grey screen
+> at power-on, see [Recovery](#recovery).
 
-## Build host requirements
-Even if the resulting disk image and firmware update files are relatively small (202 MB and 55MB, respectively), the size of the corresponding sources and the compilation by-products tend to be rather large, such that an available disk space of at least 12GB is required during the build.
+## Which device this builds for
 
-And even if the resulting FunKey OS boots in less than 5s, it still requires a considerable amount of time to compile: please account for 1 1/2 hour on a modern multi-core CPU with SSD drives and a decent Internet bandwidth.
+Upstream keeps one branch per console, and **the branches are not
+interchangeable** — they use different kernels:
 
-As the target CPU is probably different from the one running on your build host machine, a process known as [_cross-compilation_](https://en.wikipedia.org/wiki/Cross_compiler) is required for the build, and as the target system will eventually be Linux, this is much better handled on hosts running a Linux-based operating system too.
+| Upstream branch | Console | Kernel |
+| --- | --- | --- |
+| `master` | FunKey S | `v1.0.3-funkey-s` |
+| **`rg_nano`** | **Anbernic RG Nano** | **`v1.0-rg-nano`** |
+| `q36_mini` | Q36 Mini | |
+| `gba_mini` | GBA Mini | |
 
-As a matter of fact, the FunKey OS is meant to be built on a native Ubuntu or Debian Linux host machine (Ubuntu 20.04 LTS in our case, but this should also work with other versions, too). And with only a few changes to the prerequisites, it can certainly be adapted to build on other common Linux distros.
+They also differ in `linux.config` for both partitions, the buildroot submodule
+commit, and RG Nano-specific audio, GPIO and sysctl init.
 
-However, if your development machine does not match this setup, there are still several available solutions:
- -  use a lightweight container system such as [Docker](https://www.docker.com/) and run an Ubuntu or Debian Linux container in it
- - use a VM (Virtual Machine) , such as provided by [VirtualBox](https://www.virtualbox.org/) and run an Ubuntu or Debian Linux in it
- - for Windows 10/11 users, use the [WSL2](https://learn.microsoft.com/en-us/windows/wsl/install) (Windows System for Linux 2) subsystem and run an Ubuntu Linux distro in it
+This fork tracks **`rg_nano`**. Flashing a build from the wrong branch gives a
+grey screen at power-on with no launcher — on Recovery as well as the main OS,
+since both partitions carry their own copy of the kernel. The withdrawn 3.0.0
+release of this fork was built from `master`, which is why it did exactly that.
+Artifact names carry the device (`…_RG_Nano`) so a file cannot be mistaken for
+another console's.
 
-In order to install one of these virtualized environments on your machine, please refer to the corresponding documentation.
+## What is different from upstream
 
-## Build on a Physical/Virtual Machine
+- **[Favorites](#favorites)** — mark a game with **Y** and reach every game you
+  have marked, across all systems, from one entry in the main menu.
+- **Working build workflow** — the CI pinned a runner image GitHub has retired,
+  so it could never run. It builds on `ubuntu-22.04` and publishes the images.
+- **Working Docker build** — the container was based on Debian buster, which is
+  past end of life and no longer served, so `apt-get update` failed; it also
+  cloned upstream, so it built without Favorites even when run from here.
 
-### Prerequisites
-While Buildroot itself will build most host packages it needs for the compilation, some standard Linux utilities are expected to be already installed on the host system. If not already present, you will need to install the following packages beforehand:
- - bash
- - bc
- - binutils
- - build-essential
- - bzip2
- - ca-certificates
- - cpio
- - cvs
- - expect
- - file
- - g++
- - gcc
- - git
- - gzip
- - liblscp-dev
- - libncurses5-dev
- - locales
- - make
- - mercurial
- - openssh-client
- - patch
- - perl
- - procps
- - python
- - python-dev
- - python3
- - python3-dev
- - python3-distutils
- - python3-setuptools
- - rsync
- - rsync
- - sed
- - subversion
- - sudo
- - tar
- - unzip
- - wget
- - which
- - xxd
+For what FunKey OS is and how it works, see
+**[upstream's README](https://github.com/DrUm78/FunKey-OS/blob/rg_nano/README.md)**.
+Its build instructions clone upstream, so use [Build from source](#build-from-source)
+below instead, or the result will not have Favorites.
 
-On Ubuntu/Debian Linux, this is achieved by running the following command:
-```bash
-$ sudo apt install bash bc binutils build-essential bzip2 ca-certificates cpio cvs expect file g++ gcc git gzip liblscp-dev libncurses5-dev locales make mercurial openssh-client patch perl procps python python-dev python3 python3-dev python3-distutils python3-setuptools rsync rsync sed subversion sudo tar unzip wget which xxd
-```
+## Install
 
-### How to get the sources
-When using either physical or virtual Linux machines, you must clone the FunKey OS repository from Github (here we place it into a `FunKey-OS` directory):
+There is no published release — it was withdrawn, see the warning above. Get
+`FunKey-sdcard-Favorites_RG_Nano.img` by [building from source](#build-from-source).
+
+Write it to an SD card with
+[Balena Etcher](https://www.balena.io/etcher/), or:
 
 ```bash
-$ git clone https://github.com/DrUm78/FunKey-OS.git FunKey-OS
+sudo dd if=FunKey-sdcard-Favorites_RG_Nano.img of=/dev/sdX bs=4M conv=fsync status=progress
 ```
 
-Then enter into the created directory:
+> **Warning:** make sure `/dev/sdX` really is the SD card and not one of your
+> own disks. Writing the image erases everything already on that card, unlike
+> the update below.
+
+Insert the card into the console and power it on.
+
+## Update
+
+Updating replaces the OS only — games, saves and favorites are kept.
+
+1. Get `FunKey-rootfs-Favorites_RG_Nano.fwu` by [building from source](#build-from-source).
+   Read the warning above first — these images are unverified on hardware.
+2. Connect the console to your computer over USB.
+3. In the game launcher press **ON/OFF**, select **MOUNT USB**, press **A** twice.
+4. Copy the `.fwu` onto the drive that appears.
+5. Eject the drive on your computer, then press **A** twice on the console.
+
+The console applies the update and returns to the launcher.
+
+## Recovery
+
+If the console shows a grey screen at power-on and never reaches the launcher,
+the Recovery partition is still intact: an update writes only `/dev/mmcblk0p2`,
+and Recovery lives on `p1`.
+
+**Hold FN + START while powering on.** u-boot reads the key matrix over I2C and
+boots `p1` instead of the flagged partition. Be holding the buttons *before* you
+press power: `bootdelay=0` and `delay=1`, so it samples once, immediately. The
+combination is named for FunKey S hardware and may not correspond to any pair of
+buttons on another console.
+
+**If that does not work**, set the boot flag from a computer instead — this is
+the same mechanism, and it is what `normal_mode` does in reverse
+(`sfdisk -A /dev/mmcblk0 2`). u-boot boots whichever partition is flagged, so
+flagging `p1` selects Recovery with no buttons involved:
 
 ```bash
-$ cd FunKey-OS
+diskutil unmountDisk /dev/diskN     # macOS; lsblk to find it on Linux
+sudo fdisk -e /dev/diskN
+  flag 1
+  write
+  quit
 ```
 
-### Build the disk image & firmware update files
-You may now build your FunKey with:
+**EXIT RECOVERY** flips it back to `p2`, so this is reversible from the device.
+
+1. Select the **USB** entry and press **A** to mount. The console appears as a
+   drive on your computer.
+2. Delete the `.fwu` you copied, and put a known-good one in its place —
+   [DrUm78's releases](https://github.com/DrUm78/FunKey-OS/releases), or
+   whatever build the console shipped with.
+3. Eject the drive on your computer, then press **A** again to unmount — that
+   is what runs `swupdate` on any `/mnt/FunKey-*.fwu`. Eject first: flashing
+   starts the moment you unmount, so a copy the host has not flushed would be
+   flashed truncated.
+4. Select **EXIT RECOVERY**.
+
+The **INFO** entry is worth checking first: it mounts `p2` read-only and prints
+the rootfs version, which tells you whether the filesystem is intact at all.
+**NETWORK: ENABLED** plus SSH over USB gets you a shell for reading logs.
+
+## Favorites
+
+**Favorites** is the first entry in the main menu. It gathers the games you have
+marked from every system and launches each with its own emulator. It is empty
+until you mark something.
+
+| Button | Action |
+| --- | --- |
+| **Y** | Mark the highlighted game as a favorite, or unmark it |
+| **X** | Unmark the highlighted game |
+| **START** | Switch between favorites and all games for the current system |
+| **FN + L** / **FN + R** | Previous / next playlist |
+
+Each system keeps its own list, and the menu entry is assembled from those, so
+nothing can fall out of sync. The lists live on the writable partition at
+`/mnt/FunKey/.retrofe/collections/<System>/playlists/favorites.txt` and survive
+a firmware update.
+
+All 13 bundled themes ship Favorites artwork. A theme you add yourself needs a
+`collections/Favorites/system_artwork/` directory, or the entry falls back to a
+plain text label — `tools/gen-favorites-artwork.py` generates one.
+
+## Build from source
+
+Both paths below produce the same files in `images/`, and both compile the
+whole OS from source: budget **1.5–3 hours** and **~12 GB** of free disk.
+
+### With Docker
+
+Only Docker is needed — the container brings its own toolchain and clones this
+fork itself, so there is nothing to check out first.
 
 ```bash
-$ make sdk all
-```
-This may take a while (~1h30), so consider getting yourself a cup, a glass or a bottle of your favorite beverage ;-)
-
-<ins>Note</ins>: you will need to have access to the network, since buildroot will download the package sources.
-
-### Result of the build
-After building, you should obtain the SD Card image `FunKey-sdcard-X.Y.Z.img` and the firmware update file `FunKey-rootfs-X.Y.fwu` in the `images` directory.
-
-## Build in a container
-
-### Prerequisites
-When using a Docker container, all the prerequisites are automatically installed.
-
-### How to get the sources
-When using a Docker container, you must first create a new directory (here we create a `FunKey-OS` directory) and get the FunKey OS [Dockerfile](https://github.com/DrUm78/FunKey-OS/blob/master/docker/Dockerfile):
-```bash
-$ mkdir FunKey-OS
-$ cd FunKey-OS
-$ wget https://raw.githubusercontent.com/DrUm78/FunKey-OS/master/docker/Dockerfile -o Dockerfile
+curl -O https://raw.githubusercontent.com/L-K-M/FunKey-OS/master/docker/Dockerfile
+docker build --platform linux/amd64 -t funkey-os .
+docker run --platform linux/amd64 --name funkey-os funkey-os
+docker cp funkey-os:/home/funkey/FunKey-OS/images ./images
 ```
 
-You must then build the docker image (don't forget the final dot!):
-```bash
-$ docker build -t DrUm78/funkey-os .
-```
+> **`--platform linux/amd64` is not optional on Apple Silicon.** The
+> cross-toolchain the build downloads is an x86_64 binary, so it can only run in
+> an x86_64 container. The flag does nothing on an Intel or AMD machine, and
+> makes Docker Desktop emulate one on an ARM Mac — slower, but it completes.
+> Without it the container is ARM, and the build fails minutes in at
+> `>>> toolchain-external-custom … Configuring`.
 
-### Build the disk image & firmware update files
-You may now build your FunKey with:
-```bash
-$ docker run --name funkey-os DrUm78/funkey-os
-```
+To build a different fork or branch, pass
+`--build-arg FUNKEY_OS_REPO=<url>` and `--build-arg FUNKEY_OS_REF=<branch>`
+to `docker build`.
 
-Or alternatively, you can run it in the background with:
-```bash
-$ docker run -d --name funkey-os DrUm78/funkey-os
-```
+### Natively
 
-If you launch it in the background, you can still follow what is going on with either:
-```bash
-$ docker top funkey-os
-```
-Or:
-```bash
-$ docker logs funkey-os
-```
-
-This may take a while (~1h30), so consider getting yourself a cup, a glass or a bottle of your favorite beverage ;-)
-
-<ins>Note</ins>: you will need to have access to the network, since buildroot will download the package sources.
-
-### Result of the build
-After building, you can copy the SD Card image `sdcard.img` and the firmware update file `FunKey-rootfs-X.Y.fwu` from the container into the host current directory:
-```bash
-$ mkdir images
-$ docker cp funkey-os:/home/funkey/FunKey-OS/images/FunKey-sdcard-X.Y.Z.img images/
-$ docker cp funkey-os:/home/funkey/FunKey-OS/images/FunKey-rootfs-X.Y.Z.fwu images/
-```
-
-## How to write to the SD card
-You can copy the bootable `images/sdcard.img` onto an SD card using "dd":
+Tested on Ubuntu 22.04 and Debian 12; this is the package set the CI uses.
+Ubuntu 24.04 and Debian 13 dropped `python3-distutils`, which buildroot still
+wants.
 
 ```bash
-$ sudo dd if=images/FunKey-sdcard-X.Y.Z.img of=/dev/sdX
+sudo apt install make binutils build-essential gcc g++ patch bzip2 perl cpio \
+  unzip rsync file bc wget xxd libncurses5-dev cvs git mercurial liblscp-dev \
+  subversion python3 python3-dev python3-distutils python3-setuptools \
+  ca-certificates openssh-client expect locales sudo procps
+
+git clone https://github.com/L-K-M/FunKey-OS.git
+cd FunKey-OS
+make sdk all
 ```
-<ins>Warning</ins>: Please make sure that */dev/sdX* device corresponds to your SD Card, otherwise you may wipe out one of your hard drive partitions!
 
-Alternatively, you can use the Balena-Etcher graphical tool to burn the image
-to the SD card safely and on any platform:
-
-https://www.balena.io/etcher/
-
-Once the SD card is burnt, insert it into your FunKey S console slot, and
-power it up. Your new system should come up now and start a console on
-the UART0 serial port and display the retro game launcher on the graphical screen.
-
-## How to update the FunKey S firmware
-It is possible to update a FunKey-S over USB:
- - Connect the FunKey S console to your host machine using the USB cable
- - From the retro-game launcher, press the **ON/OFF** button to access the menu
- - Using the **Up/Down** keys, select the "**MOUNT USB**" screen ad press the "**A**" key twice to mount the FunKey S on your machine as an USB mass storage drive
- - Drag and drop the images/FunKey-rootfs-X.Y.fwu file into it
- - When finished, eject the USB mass storage from your host machine
- - Back on the FunKey S console, press the "**A**" key twice to eject the USB mass storage drive
- - The FunKey S console will automatically detect the firmware update file and proceed with the update before returning to the retro game launcher screen once finished
+`make sdk` builds the cross-toolchain and `make all` the OS. The files that end
+up in `images/` are the same ones a release ships, so [Install](#install) and
+[Update](#update) apply from there on.
