@@ -13,10 +13,7 @@ name: Release
 #
 #  push:
 #    tags:
-#      # Upstream's release tags are FunKey-OS-X.Y.Z, and the version the OS
-#      # reports tracks them. Matching that rather than inventing a v-prefix
-#      # keeps a tag here comparable with the release it descends from.
-#      - 'FunKey-OS-*'
+#      - 'Starling-*'
 on:
   # Dispatch this with a tag selected as the ref; it refuses to run on a branch,
   # since a release has to point at a fixed commit. The check job below still
@@ -45,14 +42,19 @@ jobs:
   check:
     runs-on: ubuntu-latest
     steps:
-      # push is filtered to FunKey-OS-*, but a dispatch can select any ref, and
-      # the repository carries feature tags as well as release ones. Without the
-      # name check, dispatching on one of those would build for two hours and
-      # then publish a public release named after it.
+      # Dispatch is the only trigger and it can select any ref: a branch, or one
+      # of the feature tags this repository also carries, several of them
+      # inherited from upstream. Without the name check, dispatching on one of
+      # those would build for two hours and then publish a public release named
+      # after it.
+      #
+      # Starling-X.Y.Z, not upstream's FunKey-OS-X.Y.Z: this fork has its own
+      # name and its own version line now, and a tag reading FunKey-OS-3.0.0
+      # here would collide with the meaning it has upstream.
       - name: Refuse to release anything but a release tag
-        if: ${{ github.ref_type != 'tag' || !startsWith(github.ref_name, 'FunKey-OS-') }}
+        if: ${{ github.ref_type != 'tag' || !startsWith(github.ref_name, 'Starling-') }}
         run: |
-          echo "This workflow publishes a release and must run on a FunKey-OS-* tag."
+          echo "This workflow publishes a release and must run on a Starling-* tag."
           echo "Got $GITHUB_REF. Re-run it with a release tag selected as the ref."
           exit 1
 
@@ -133,7 +135,7 @@ jobs:
           | \`${fwu}\` | Firmware update. Copy it over USB to update in place, keeping games and saves. |
           | \`${sdk}\` | Cross-toolchain, needed only to build software for the console. |
 
-          See the [README](https://github.com/L-K-M/FunKey-OS-Favorites#install) for how to install or update.
+          See the [README](https://github.com/L-K-M/FunKey-OS-Starling#install) for how to install or update.
           NOTES
 
           mapfile -t assets < assets.txt

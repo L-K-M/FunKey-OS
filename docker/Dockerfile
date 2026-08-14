@@ -7,7 +7,7 @@ FROM debian:bookworm-slim
 # Starling line for the Anbernic RG Nano, so a plain "docker build" produces an
 # RG Nano image with Favorites. Override to build another fork or branch --
 # but note a build for one console does not boot another.
-ARG FUNKEY_OS_REPO=https://github.com/L-K-M/FunKey-OS-Favorites.git
+ARG FUNKEY_OS_REPO=https://github.com/L-K-M/FunKey-OS-Starling.git
 ARG FUNKEY_OS_REF=master
 
 LABEL \
