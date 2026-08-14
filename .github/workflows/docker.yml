@@ -54,19 +54,24 @@ jobs:
           remote=$(docker run --rm funkey-os-build-env git remote get-url origin)
           echo "origin:     $remote"
           echo "expected:   $GITHUB_REPOSITORY"
-          # Anchored at the end of the URL, with any trailing .git dropped, so a
-          # lookalike remote fails rather than passing on a substring: owner/repo
-          # also occurs inside owner/repo-mirror and inside the same path on
-          # another host. The [/@] before the host is what separates github.com
-          # from evilgithub.com while still accepting a token in the URL, and the
-          # second pattern is the scp form git@github.com:owner/repo.
+          # Reduced to host/path and compared whole, rather than glob-matched
+          # against the tail of the URL. Anchoring only the end still leaves the
+          # host free: *[/@]github.com/owner/repo happily matches
+          # https://mirror.example.org/github.com/owner/repo. So the scheme and
+          # any credentials come off first and what remains has to be exactly
+          # github.com/owner/repo -- which also rules out owner/repo-mirror and
+          # evilgithub.com. The second pattern is the scp form
+          # git@github.com:owner/repo, whose host separator is a colon.
           # Both sides are lowercased: GitHub URLs are case-insensitive, so a
           # rename that changed the canonical casing would otherwise fail here
           # against a Dockerfile that is still perfectly correct.
           lower() { printf '%s' "$1" | tr '[:upper:]' '[:lower:]'; }
-          case "$(lower "${remote%.git}")" in
-            *[/@]github.com/"$(lower "$GITHUB_REPOSITORY")") ;;
-            *@github.com:"$(lower "$GITHUB_REPOSITORY")") ;;
+          norm=$(lower "${remote%.git}")
+          norm=${norm#*://}   # scheme, if any
+          norm=${norm#*@}     # credentials, or the scp form's user
+          case "$norm" in
+            github.com/"$(lower "$GITHUB_REPOSITORY")") ;;
+            github.com:"$(lower "$GITHUB_REPOSITORY")") ;;
             *) echo "::error::container cloned $remote, not $GITHUB_REPOSITORY"; exit 1 ;;
           esac
 
