@@ -3,11 +3,12 @@
 # carries every package below.
 FROM debian:bookworm-slim
 
-# Which sources to build. Defaults to this fork's rg_nano branch, so a plain
-# "docker build" produces an RG Nano image with Favorites. master here is the
-# FunKey S line and will not boot an RG Nano; override to build another.
+# Which sources to build. Defaults to this repository's master, which is the
+# Starling line for the Anbernic RG Nano, so a plain "docker build" produces an
+# RG Nano image with Favorites. Override to build another fork or branch --
+# but note a build for one console does not boot another.
 ARG FUNKEY_OS_REPO=https://github.com/L-K-M/FunKey-OS.git
-ARG FUNKEY_OS_REF=rg_nano
+ARG FUNKEY_OS_REF=master
 
 LABEL \
 	maintainer="Michel Stempin <michel.stempin@funkey-project.com>" \
