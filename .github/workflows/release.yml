@@ -73,7 +73,7 @@ jobs:
         run: |
           ls -lh build/images/
           missing=0
-          for f in FunKey-sdcard-DrUm78.img FunKey-rootfs-DrUm78.fwu FunKey-sdk-DrUm78.tar.gz; do
+          for f in FunKey-sdcard-Favorites.img FunKey-rootfs-Favorites.fwu FunKey-sdk-Favorites.tar.gz; do
             if [ ! -f "build/images/$f" ]; then
               echo "::error::expected image missing from the build: $f"
               missing=1
@@ -94,17 +94,17 @@ jobs:
 
           | File | What it is |
           | --- | --- |
-          | `FunKey-sdcard-DrUm78.img` | Full SD card image. Write it to a card to install. This erases the card. |
-          | `FunKey-rootfs-DrUm78.fwu` | Firmware update. Copy it over USB to update in place, keeping games and saves. |
-          | `FunKey-sdk-DrUm78.tar.gz` | Cross-toolchain, needed only to build software for the console. |
+          | `FunKey-sdcard-Favorites.img` | Full SD card image. Write it to a card to install. This erases the card. |
+          | `FunKey-rootfs-Favorites.fwu` | Firmware update. Copy it over USB to update in place, keeping games and saves. |
+          | `FunKey-sdk-Favorites.tar.gz` | Cross-toolchain, needed only to build software for the console. |
 
           See the [README](https://github.com/L-K-M/FunKey-OS#install) for how to install or update.
           NOTES
 
           assets=(
-            build/images/FunKey-sdcard-DrUm78.img
-            build/images/FunKey-rootfs-DrUm78.fwu
-            build/images/FunKey-sdk-DrUm78.tar.gz
+            build/images/FunKey-sdcard-Favorites.img
+            build/images/FunKey-rootfs-Favorites.fwu
+            build/images/FunKey-sdk-Favorites.tar.gz
           )
 
           # Re-runnable. gh release create refuses a tag that already has a

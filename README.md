@@ -44,13 +44,13 @@ below instead, or the result will not have Favorites.
 ## Install
 
 There is no published release — it was withdrawn, see the warning above. Get
-`FunKey-sdcard-DrUm78.img` by [building from source](#build-from-source).
+`FunKey-sdcard-Favorites.img` by [building from source](#build-from-source).
 
 Write it to an SD card with
 [Balena Etcher](https://www.balena.io/etcher/), or:
 
 ```bash
-sudo dd if=FunKey-sdcard-DrUm78.img of=/dev/sdX bs=4M conv=fsync status=progress
+sudo dd if=FunKey-sdcard-Favorites.img of=/dev/sdX bs=4M conv=fsync status=progress
 ```
 
 > **Warning:** make sure `/dev/sdX` really is the SD card and not one of your
@@ -63,7 +63,7 @@ Insert the card into the console and power it on.
 
 Updating replaces the OS only — games, saves and favorites are kept.
 
-1. Get `FunKey-rootfs-DrUm78.fwu` by [building from source](#build-from-source).
+1. Get `FunKey-rootfs-Favorites.fwu` by [building from source](#build-from-source).
    Read the warning above first — these images are unverified on hardware.
 2. Connect the console to your computer over USB.
 3. In the game launcher press **ON/OFF**, select **MOUNT USB**, press **A** twice.
