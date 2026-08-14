@@ -19,6 +19,10 @@ on:
   # No branch filter here: workflow_dispatch does not support one, and the ref
   # is chosen when the run is started.
   workflow_dispatch:
+  # Lets release.yml build through this workflow rather than keeping a second
+  # copy of the same steps in step with this one. Path filters do not apply to
+  # workflow_call, so a release still builds even for a docs-only tag.
+  workflow_call:
 
 # A full buildroot run is long and expensive, so do not let pushes pile up
 # several of them against the same ref.

@@ -1,0 +1,81 @@
+name: Release
+
+# Publishes the SD card image, the firmware update file and the SDK as a GitHub
+# Release, so getting a build needs neither a two-hour compile nor a GitHub
+# account digging through a workflow run.
+on:
+  push:
+    tags:
+      - 'v*'
+  # Dispatch this with a tag selected as the ref; it refuses to run on a branch,
+  # since a release has to point at a fixed commit.
+  workflow_dispatch:
+
+# Needed to create the release and upload assets to it.
+permissions:
+  contents: write
+
+# Unlike the build workflow, do not cancel: a superseded release build is still
+# a release someone may be waiting on.
+concurrency:
+  group: release-${{ github.ref }}
+  cancel-in-progress: false
+
+jobs:
+  # Cheap gate so a mistaken dispatch fails in seconds rather than after the
+  # build has run for two hours.
+  check:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Refuse to release anything but a tag
+        if: ${{ github.ref_type != 'tag' }}
+        run: |
+          echo "This workflow publishes a release and must run on a tag."
+          echo "Got ${{ github.ref }}. Re-run it with a tag selected as the ref."
+          exit 1
+
+  # Build through the ordinary build workflow rather than repeating its steps
+  # here, so a release can never be built differently from everything else.
+  build:
+    needs: check
+    uses: ./.github/workflows/build.yml
+
+  publish:
+    needs: build
+    runs-on: ubuntu-latest
+    steps:
+      # The build workflow uploads images/ and br.log as one artifact, rooted at
+      # the repository directory, so the images arrive under build/images/.
+      - name: Download the build
+        uses: actions/download-artifact@v4
+        with:
+          name: funkey-os-images
+          path: build
+
+      - name: Show what will be published
+        run: ls -lh build/images/
+
+      - name: Publish the release
+        env:
+          GH_TOKEN: ${{ github.token }}
+          TAG: ${{ github.ref_name }}
+        run: |
+          cat > notes.md <<'NOTES'
+          FunKey OS with Favorites.
+
+          | File | What it is |
+          | --- | --- |
+          | `FunKey-sdcard-DrUm78.img` | Full SD card image. Write it to a card to install. This erases the card. |
+          | `FunKey-rootfs-DrUm78.fwu` | Firmware update. Copy it over USB to update in place, keeping games and saves. |
+          | `FunKey-sdk-DrUm78.tar.gz` | Cross-toolchain, needed only to build software for the console. |
+
+          See the [README](https://github.com/L-K-M/FunKey-OS#install) for how to install or update.
+          NOTES
+
+          gh release create "$TAG" \
+            --repo "$GITHUB_REPOSITORY" \
+            --title "$TAG" \
+            --notes-file notes.md \
+            build/images/FunKey-sdcard-DrUm78.img \
+            build/images/FunKey-rootfs-DrUm78.fwu \
+            build/images/FunKey-sdk-DrUm78.tar.gz
