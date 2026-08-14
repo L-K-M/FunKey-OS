@@ -7,14 +7,14 @@ on:
   # Spelled out twice rather than shared via a YAML anchor, which the Actions
   # workflow parser does not support.
   push:
-    branches: [ master ]
+    branches: [ rg_nano, master ]
     paths-ignore:
       - '**.md'
       - 'LICENSE'
       - 'docker/**'
       - '.github/workflows/docker.yml'
   pull_request:
-    branches: [ master ]
+    branches: [ rg_nano, master ]
     paths-ignore:
       - '**.md'
       - 'LICENSE'

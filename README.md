@@ -1,4 +1,4 @@
-[![FunKey-OS Build](https://github.com/L-K-M/FunKey-OS/actions/workflows/build.yml/badge.svg?branch=master)](https://github.com/L-K-M/FunKey-OS/actions/workflows/build.yml?query=branch%3Amaster)
+[![FunKey-OS Build](https://github.com/L-K-M/FunKey-OS/actions/workflows/build.yml/badge.svg?branch=rg_nano)](https://github.com/L-K-M/FunKey-OS/actions/workflows/build.yml?query=branch%3Arg_nano)
 
 # FunKey OS — Favorites fork (Anbernic RG Nano)
 
@@ -33,12 +33,26 @@ interchangeable** — they use different kernels:
 They also differ in `linux.config` for both partitions, the buildroot submodule
 commit, and RG Nano-specific audio, GPIO and sysctl init.
 
-This fork tracks **`rg_nano`**. Flashing a build from the wrong branch gives a
-grey screen at power-on with no launcher — on Recovery as well as the main OS,
-since both partitions carry their own copy of the kernel. The withdrawn 3.0.0
-release of this fork was built from `master`, which is why it did exactly that.
-Artifact names carry the device (`…_RG_Nano`) so a file cannot be mistaken for
-another console's.
+Flashing a build from the wrong branch gives a grey screen at power-on with no
+launcher — on Recovery as well as the main OS, since both partitions carry their
+own copy of the kernel. The withdrawn 3.0.0 release of this fork was built from
+`master`, which is why it did exactly that. Artifact names now carry the device
+(`…_RG_Nano`) so a file cannot be mistaken for another console's.
+
+### Branches in this fork
+
+| Branch | Tracks | Builds for |
+| --- | --- | --- |
+| **`rg_nano`** | upstream `rg_nano` | **Anbernic RG Nano — build from this one** |
+| `master` | upstream `master` | FunKey S — where Favorites was first written; superseded |
+
+> **`master` is not the branch you want** unless you have a FunKey S. Clone with
+> `--branch rg_nano`, or `git switch rg_nano` after cloning. Everything below
+> assumes you are on `rg_nano`.
+
+Favorites itself is device-independent — it touches RetroFE, collections and
+theme artwork, none of which the device branches modify — so porting it to
+`q36_mini` or `gba_mini` is the same operation.
 
 ## What is different from upstream
 
@@ -111,7 +125,7 @@ sudo fdisk -e /dev/diskN
   quit
 ```
 
-**EXIT RECOVERY** flips it back to `p2`, so this is reversible from the device.
+Either way you land on the recovery menu:
 
 1. Select the **USB** entry and press **A** to mount. The console appears as a
    drive on your computer.
@@ -122,11 +136,20 @@ sudo fdisk -e /dev/diskN
    is what runs `swupdate` on any `/mnt/FunKey-*.fwu`. Eject first: flashing
    starts the moment you unmount, so a copy the host has not flushed would be
    flashed truncated.
-4. Select **EXIT RECOVERY**.
+4. Select **EXIT RECOVERY**. That runs `normal_mode`, which flags `p2` again —
+   so the boot-flag change above is undone from the device.
 
 The **INFO** entry is worth checking first: it mounts `p2` read-only and prints
 the rootfs version, which tells you whether the filesystem is intact at all.
 **NETWORK: ENABLED** plus SSH over USB gets you a shell for reading logs.
+
+RetroFE's log will not be on the card afterwards: `/usr/games/log.txt` is a
+symlink to `/tmp/retrofe.log`, and `/tmp` is tmpfs. To keep one across a power
+cycle, repoint it at the share partition from a Recovery shell —
+`ln -sf /mnt/retrofe.log /usr/games/log.txt` on a read-write mount of `p2` —
+and redirect the frontend too, since `/root/.profile` ends with
+`frontend init >/dev/null 2>&1 &` and discards anything printed before the log
+is open.
 
 ## Favorites
 
@@ -175,7 +198,7 @@ docker cp funkey-os:/home/funkey/FunKey-OS/images ./images
 > `>>> toolchain-external-custom … Configuring`.
 
 To build a different fork or branch, pass
-`--build-arg FUNKEY_OS_REPO=<url>` and `--build-arg FUNKEY_OS_REF=<branch>`
+`--build-arg FUNKEY_OS_REPO=<url>` and `--build-arg FUNKEY_OS_REF=<branch>` (this fork defaults to `rg_nano`)
 to `docker build`.
 
 ### Natively
@@ -190,7 +213,7 @@ sudo apt install make binutils build-essential gcc g++ patch bzip2 perl cpio \
   subversion python3 python3-dev python3-distutils python3-setuptools \
   ca-certificates openssh-client expect locales sudo procps
 
-git clone https://github.com/L-K-M/FunKey-OS.git
+git clone --branch rg_nano https://github.com/L-K-M/FunKey-OS.git
 cd FunKey-OS
 make sdk all
 ```
