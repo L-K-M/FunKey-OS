@@ -88,10 +88,17 @@ fork itself, so there is nothing to check out first.
 
 ```bash
 curl -O https://raw.githubusercontent.com/L-K-M/FunKey-OS/master/docker/Dockerfile
-docker build -t funkey-os .
-docker run --name funkey-os funkey-os
+docker build --platform linux/amd64 -t funkey-os .
+docker run --platform linux/amd64 --name funkey-os funkey-os
 docker cp funkey-os:/home/funkey/FunKey-OS/images ./images
 ```
+
+> **`--platform linux/amd64` is not optional on Apple Silicon.** The
+> cross-toolchain the build downloads is an x86_64 binary, so it can only run in
+> an x86_64 container. The flag does nothing on an Intel or AMD machine, and
+> makes Docker Desktop emulate one on an ARM Mac — slower, but it completes.
+> Without it the container is ARM, and the build fails minutes in at
+> `>>> toolchain-external-custom … Configuring`.
 
 To build a different fork or branch, pass
 `--build-arg FUNKEY_OS_REPO=<url>` and `--build-arg FUNKEY_OS_REF=<branch>`
