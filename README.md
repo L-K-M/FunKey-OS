@@ -26,15 +26,14 @@ below instead, or the result will not have Favorites.
 
 ## Install
 
-Open the [latest build](https://github.com/L-K-M/FunKey-OS/actions/workflows/build.yml?query=branch%3Amaster+is%3Asuccess),
-download the `funkey-os-images` artifact from the run page, and unzip it.
-Downloading it needs a GitHub account, and artifacts are kept 90 days.
+Download `FunKey-sdcard-DrUm78.img` from the
+[latest release](https://github.com/L-K-M/FunKey-OS/releases/latest).
 
-Write `images/FunKey-sdcard-DrUm78.img` to an SD card with
+Write it to an SD card with
 [Balena Etcher](https://www.balena.io/etcher/), or:
 
 ```bash
-sudo dd if=images/FunKey-sdcard-DrUm78.img of=/dev/sdX bs=4M conv=fsync status=progress
+sudo dd if=FunKey-sdcard-DrUm78.img of=/dev/sdX bs=4M conv=fsync status=progress
 ```
 
 > **Warning:** make sure `/dev/sdX` really is the SD card and not one of your
@@ -47,10 +46,12 @@ Insert the card into the console and power it on.
 
 Updating replaces the OS only — games, saves and favorites are kept.
 
-1. Connect the console to your computer over USB.
-2. In the game launcher press **ON/OFF**, select **MOUNT USB**, press **A** twice.
-3. Copy `images/FunKey-rootfs-DrUm78.fwu` onto the drive that appears.
-4. Eject the drive on your computer, then press **A** twice on the console.
+1. Download `FunKey-rootfs-DrUm78.fwu` from the
+   [latest release](https://github.com/L-K-M/FunKey-OS/releases/latest).
+2. Connect the console to your computer over USB.
+3. In the game launcher press **ON/OFF**, select **MOUNT USB**, press **A** twice.
+4. Copy the `.fwu` onto the drive that appears.
+5. Eject the drive on your computer, then press **A** twice on the console.
 
 The console applies the update and returns to the launcher.
 
@@ -114,5 +115,6 @@ cd FunKey-OS
 make sdk all
 ```
 
-`make sdk` builds the cross-toolchain and `make all` the OS; the `images/`
-files are then the same ones the [Install](#install) section flashes.
+`make sdk` builds the cross-toolchain and `make all` the OS. The files that end
+up in `images/` are the same ones a release ships, so [Install](#install) and
+[Update](#update) apply from there on.
