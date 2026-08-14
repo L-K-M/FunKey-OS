@@ -9,6 +9,23 @@ Forked from [DrUm78/FunKey-OS](https://github.com/DrUm78/FunKey-OS), itself a
 fork of the original
 [FunKey-Project/FunKey-OS](https://github.com/FunKey-Project/FunKey-OS).
 
+> ## ⚠️ Do not install this yet
+>
+> **This has never been verified on hardware.** The 3.0.0 release was published
+> on the strength of a green CI build, and installing that `.fwu` left an
+> RG Nano showing a grey screen at power-on. The release has been withdrawn.
+>
+> The cause is not yet known. Until it is, build from source only if you are
+> prepared to recover the device, and use
+> [DrUm78/FunKey-OS](https://github.com/DrUm78/FunKey-OS/releases) for anything
+> you actually want to play on.
+>
+> Note also that this tree contains no RG Nano, Q36 Mini or GBA Mini support of
+> its own: it builds one image, and `etc/hwrevision` is hardcoded to
+> `FunKey_S Rev.F`.
+>
+> If you have already installed it, see [Recovery](#recovery).
+
 ## What is different from upstream
 
 - **[Favorites](#favorites)** — mark a game with **Y** and reach every game you
@@ -26,8 +43,8 @@ below instead, or the result will not have Favorites.
 
 ## Install
 
-Download `FunKey-sdcard-DrUm78.img` from the
-[latest release](https://github.com/L-K-M/FunKey-OS/releases/latest).
+There is no published release — it was withdrawn, see the warning above. Get
+`FunKey-sdcard-DrUm78.img` by [building from source](#build-from-source).
 
 Write it to an SD card with
 [Balena Etcher](https://www.balena.io/etcher/), or:
@@ -46,14 +63,38 @@ Insert the card into the console and power it on.
 
 Updating replaces the OS only — games, saves and favorites are kept.
 
-1. Download `FunKey-rootfs-DrUm78.fwu` from the
-   [latest release](https://github.com/L-K-M/FunKey-OS/releases/latest).
+1. Get `FunKey-rootfs-DrUm78.fwu` by [building from source](#build-from-source).
+   Read the warning above first — these images are unverified on hardware.
 2. Connect the console to your computer over USB.
 3. In the game launcher press **ON/OFF**, select **MOUNT USB**, press **A** twice.
 4. Copy the `.fwu` onto the drive that appears.
 5. Eject the drive on your computer, then press **A** twice on the console.
 
 The console applies the update and returns to the launcher.
+
+## Recovery
+
+If the console shows a grey screen at power-on and never reaches the launcher,
+the Recovery partition is still intact: an update writes only `/dev/mmcblk0p2`,
+and Recovery lives on `p1`.
+
+**Hold FN + START while powering on.** `S60recovery` reads the key matrix at
+boot and opens the recovery menu instead of booting the OS.
+
+1. Select the **USB** entry and press **A** to mount. The console appears as a
+   drive on your computer.
+2. Delete the `.fwu` you copied, and put a known-good one in its place —
+   [DrUm78's releases](https://github.com/DrUm78/FunKey-OS/releases), or
+   whatever build the console shipped with.
+3. Eject the drive on your computer, then press **A** again to unmount — that
+   is what runs `swupdate` on any `/mnt/FunKey-*.fwu`. Eject first: flashing
+   starts the moment you unmount, so a copy the host has not flushed would be
+   flashed truncated.
+4. Select **EXIT RECOVERY**.
+
+The **INFO** entry is worth checking first: it mounts `p2` read-only and prints
+the rootfs version, which tells you whether the filesystem is intact at all.
+**NETWORK: ENABLED** plus SSH over USB gets you a shell for reading logs.
 
 ## Favorites
 
