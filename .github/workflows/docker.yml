@@ -35,8 +35,15 @@ jobs:
       # Builds every layer: the base image has to still be served, apt has to
       # resolve the whole package list, and the clone has to succeed. Those are
       # the three things that have actually broken here.
+      #
+      # Pinned to amd64 rather than left to whatever the runner is. The
+      # cross-toolchain the OS build downloads is an x86_64 binary, so an arm64
+      # image is useless -- and it would sail through every check below, since
+      # apt, the clone and both docker run steps are perfectly happy on arm.
+      # ubuntu-latest is amd64 today; this repository has already lost every
+      # build it ever ran to a runner label changing underneath it once.
       - name: Build the container
-        run: docker build -t funkey-os-build-env docker/
+        run: docker build --platform linux/amd64 -t funkey-os-build-env docker/
 
       # A container that builds but points at the wrong sources is the failure
       # that is easiest to miss, because nothing goes wrong until hours later.
