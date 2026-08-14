@@ -57,11 +57,11 @@ jobs:
           # Reduced to host/path and compared whole, rather than glob-matched
           # against the tail of the URL. Anchoring only the end still leaves the
           # host free: *[/@]github.com/owner/repo happily matches
-          # https://mirror.example.org/github.com/owner/repo. So the scheme and
-          # any credentials come off first and what remains has to be exactly
-          # github.com/owner/repo -- which also rules out owner/repo-mirror and
-          # evilgithub.com. The second pattern is the scp form
-          # git@github.com:owner/repo, whose host separator is a colon.
+          # https://mirror.example.org/github.com/owner/repo. So the scheme
+          # comes off, the userinfo comes off where it really is userinfo, and
+          # what remains has to be exactly github.com/owner/repo -- which also
+          # rules out owner/repo-mirror and evilgithub.com. The second pattern
+          # is the scp form git@github.com:owner/repo, host separator a colon.
           # Both sides are lowercased: GitHub URLs are case-insensitive, so a
           # rename that changed the canonical casing would otherwise fail here
           # against a Dockerfile that is still perfectly correct.
@@ -69,7 +69,13 @@ jobs:
           norm=$(lower "$remote")
           norm=${norm%.git}   # suffix -- after lowercasing, so .GIT goes too
           norm=${norm#*://}   # scheme, if any
-          norm=${norm#*@}     # credentials, or the scp form's user
+          # Credentials, or the scp form's user -- but only when the @ is in the
+          # authority. Cutting to the first @ unconditionally would delete a
+          # real host: in mirror.example.org/@github.com/owner/repo the @ is in
+          # the path, and cutting there leaves exactly github.com/owner/repo.
+          case "${norm%%/*}" in
+            *@*) norm=${norm#*@} ;;
+          esac
           case "$norm" in
             github.com/"$(lower "$GITHUB_REPOSITORY")") ;;
             github.com:"$(lower "$GITHUB_REPOSITORY")") ;;
