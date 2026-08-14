@@ -1,0 +1,60 @@
+name: Docker build environment
+
+# The OS build compiles natively on the runner and never reads docker/, so it is
+# filtered out of that workflow. This is what validates the container instead:
+# minutes rather than hours, because it stops once the image is built and does
+# not go on to compile the OS inside it.
+on:
+  push:
+    branches: [ master ]
+    paths:
+      - 'docker/**'
+      - '.github/workflows/docker.yml'
+  pull_request:
+    branches: [ master ]
+    paths:
+      - 'docker/**'
+      - '.github/workflows/docker.yml'
+  workflow_dispatch:
+
+concurrency:
+  group: docker-${{ github.ref }}
+  cancel-in-progress: true
+
+permissions:
+  contents: read
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+
+    steps:
+      - uses: actions/checkout@v4
+
+      # Builds every layer: the base image has to still be served, apt has to
+      # resolve the whole package list, and the clone has to succeed. Those are
+      # the three things that have actually broken here.
+      - name: Build the container
+        run: docker build -t funkey-os-build-env docker/
+
+      # A container that builds but points at the wrong sources is the failure
+      # that is easiest to miss, because nothing goes wrong until hours later.
+      - name: Check it cloned this repository
+        run: |
+          remote=$(docker run --rm funkey-os-build-env \
+            git -C /home/funkey/FunKey-OS remote get-url origin)
+          echo "origin: $remote"
+          case "$remote" in
+            *L-K-M/FunKey-OS*) ;;
+            *) echo "::error::container cloned $remote, not this fork"; exit 1 ;;
+          esac
+
+      # The Makefile is what CMD runs, and Favorites is what this fork adds.
+      - name: Check the sources look right
+        run: |
+          docker run --rm funkey-os-build-env sh -c '
+            cd /home/funkey/FunKey-OS &&
+            test -f Makefile &&
+            test -d "FunKey/board/funkey/rootfs-overlay/usr/games/collections/Favorites" &&
+            echo "Makefile and Favorites collection present"'
