@@ -19,22 +19,26 @@ fork of the original
 Everything else is upstream's, including how FunKey OS works and how to build
 it from source: see
 **[upstream's README](https://github.com/DrUm78/FunKey-OS/blob/master/README.md)**.
-Build from *this* repository, though, or the result will not have Favorites.
+Substitute this repository's URL wherever those instructions clone or fetch
+from upstream — including the Dockerfile they download — or the result will not
+have Favorites.
 
 ## Install
 
 Open the [latest build](https://github.com/L-K-M/FunKey-OS/actions/workflows/build.yml?query=branch%3Amaster+is%3Asuccess),
 download the `funkey-os-images` artifact from the run page, and unzip it.
+Downloading it needs a GitHub account, and artifacts are kept 90 days.
 
 Write `images/FunKey-sdcard-DrUm78.img` to an SD card with
 [Balena Etcher](https://www.balena.io/etcher/), or:
 
 ```bash
-sudo dd if=images/FunKey-sdcard-DrUm78.img of=/dev/sdX
+sudo dd if=images/FunKey-sdcard-DrUm78.img of=/dev/sdX bs=4M conv=fsync status=progress
 ```
 
-> **Warning:** make sure `/dev/sdX` really is the SD card, not one of your own
-> disks.
+> **Warning:** make sure `/dev/sdX` really is the SD card and not one of your
+> own disks. Writing the image erases everything already on that card, unlike
+> the update below.
 
 Insert the card into the console and power it on.
 
