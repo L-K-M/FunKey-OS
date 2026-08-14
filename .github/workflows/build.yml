@@ -11,11 +11,13 @@ on:
     paths-ignore:
       - '**.md'
       - 'LICENSE'
+      - 'docker/**'
   pull_request:
     branches: [ master ]
     paths-ignore:
       - '**.md'
       - 'LICENSE'
+      - 'docker/**'
   # No branch filter here: workflow_dispatch does not support one, and the ref
   # is chosen when the run is started.
   workflow_dispatch:
