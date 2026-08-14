@@ -133,7 +133,7 @@ jobs:
           | \`${fwu}\` | Firmware update. Copy it over USB to update in place, keeping games and saves. |
           | \`${sdk}\` | Cross-toolchain, needed only to build software for the console. |
 
-          See the [README](https://github.com/L-K-M/FunKey-OS#install) for how to install or update.
+          See the [README](https://github.com/L-K-M/FunKey-OS-Favorites#install) for how to install or update.
           NOTES
 
           mapfile -t assets < assets.txt
