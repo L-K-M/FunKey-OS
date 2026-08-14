@@ -6,14 +6,22 @@ name: Release
 on:
   push:
     tags:
-      - 'v*'
+      # Upstream's release tags are FunKey-OS-X.Y.Z, and the version the OS
+      # reports tracks them. Matching that rather than inventing a v-prefix
+      # keeps a tag here comparable with the release it descends from.
+      - 'FunKey-OS-*'
   # Dispatch this with a tag selected as the ref; it refuses to run on a branch,
   # since a release has to point at a fixed commit.
   workflow_dispatch:
 
-# Deliberately not granted workflow-wide: the build job compiles a great deal of
-# third-party source, and it has no reason to hold write access to the
-# repository. Only the publish job below gets it.
+# Restrict every job, then grant write to publish alone. Omitting this block
+# would not have been neutral: jobs would inherit the repository default, which
+# is read-write on anything created before GitHub changed it, so the build --
+# which compiles a great deal of third-party source -- would quietly hold write
+# access to the repository. A called workflow runs with the calling job's token,
+# so this covers the build too.
+permissions:
+  contents: read
 
 # Unlike the build workflow, do not cancel: a superseded release build is still
 # a release someone may be waiting on.
@@ -55,8 +63,22 @@ jobs:
           name: funkey-os-images
           path: build
 
-      - name: Show what will be published
-        run: ls -lh build/images/
+      # Fail here, with the directory listing, rather than letting gh report a
+      # bare "file not found" after the build has already run for two hours.
+      - name: Check the expected images are there
+        run: |
+          ls -lh build/images/
+          missing=0
+          for f in FunKey-sdcard-DrUm78.img FunKey-rootfs-DrUm78.fwu FunKey-sdk-DrUm78.tar.gz; do
+            if [ ! -f "build/images/$f" ]; then
+              echo "::error::expected image missing from the build: $f"
+              missing=1
+            fi
+          done
+          [ "$missing" -eq 0 ] || {
+            echo "The Makefile's image names and this workflow have diverged."
+            exit 1
+          }
 
       - name: Publish the release
         env:
