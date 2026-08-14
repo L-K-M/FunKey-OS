@@ -1,5 +1,16 @@
-<!-- ![FunKey OS Build](https://github.com/FunKey-Project/FunKey-OS/workflows/FunKey-OS%20Build/badge.svg) -->
+<!-- ![FunKey OS Build](https://github.com/L-K-M/FunKey-OS/workflows/FunKey-OS%20Build/badge.svg) -->
 # FunKey OS
+
+> ### This is a fork that adds Favorites
+>
+> A fork of [DrUm78/FunKey-OS](https://github.com/DrUm78/FunKey-OS), which is
+> itself a fork of the original [FunKey-Project/FunKey-OS](https://github.com/FunKey-Project/FunKey-OS).
+> Everything below is upstream documentation and still applies; the one addition
+> is a **Favorites** feature in the RetroFE front-end. See
+> [Favorites](#favorites) for what it does and which buttons drive it.
+>
+> Build it from **this** repository rather than upstream, or you will get a
+> build without the feature.
 
 ## Intro
 This repository contains all the sources required to build FunKey OS, the Open-Source firmware at the heart of the [FunKey S retro-gaming console](https://www.funkey-project.com/).
@@ -79,8 +90,11 @@ $ sudo apt install bash bc binutils build-essential bzip2 ca-certificates cpio c
 When using either physical or virtual Linux machines, you must clone the FunKey OS repository from Github (here we place it into a `FunKey-OS` directory):
 
 ```bash
-$ git clone https://github.com/DrUm78/FunKey-OS.git FunKey-OS
+$ git clone https://github.com/L-K-M/FunKey-OS.git FunKey-OS
 ```
+
+<ins>Note</ins>: this is the fork, so that the build includes Favorites. Upstream is
+`https://github.com/DrUm78/FunKey-OS.git`.
 
 Then enter into the created directory:
 
@@ -150,6 +164,46 @@ $ mkdir images
 $ docker cp funkey-os:/home/funkey/FunKey-OS/images/FunKey-sdcard-X.Y.Z.img images/
 $ docker cp funkey-os:/home/funkey/FunKey-OS/images/FunKey-rootfs-X.Y.Z.fwu images/
 ```
+
+## Favorites
+The addition in this fork. Mark any game as a favorite and reach every game you
+have marked, across all systems, from one entry in the main menu.
+
+### Controls
+In the RetroFE game list:
+
+| Button | Action |
+| --- | --- |
+| **Y** | Add the highlighted game to your favorites, or remove it if it is already there |
+| **X** | Remove the highlighted game from your favorites |
+| **START** | Switch between the favorites and the full game list for the current system |
+| **FN + L** / **FN + R** | Previous / next playlist |
+
+`Y` decides which way to go from whether the game is already a favorite, so one
+button covers both directions. `X` is kept as an explicit "remove".
+
+### The Favorites menu entry
+**Favorites** is the first entry in the main menu. It gathers the games you have
+marked from every system, and launches each one with its own emulator. Until you
+mark something it is simply empty.
+
+Each system keeps its own favorites list, so the menu entry is assembled from
+those rather than from a separate list of its own: nothing can fall out of sync,
+and editing a system's list by hand is reflected on the next boot. The lists live
+on the writable partition, at
+`/mnt/FunKey/.retrofe/collections/<System>/playlists/favorites.txt`, so they
+survive a firmware update.
+
+All 13 bundled themes ship Favorites artwork. A theme you add yourself needs a
+`collections/Favorites/system_artwork/` directory to match its other systems,
+otherwise the entry falls back to a plain text label;
+`tools/gen-favorites-artwork.py` will generate one.
+
+### Configuration
+The key bindings live in `/usr/games/controls.conf`, and the menu entry is the
+collection at `/usr/games/collections/Favorites/`, which holds a `settings.conf`
+and one empty `<System>.sub` file per system it gathers from. Adding a system to
+the Favorites entry is a single empty file.
 
 ## How to write to the SD card
 You can copy the bootable `images/sdcard.img` onto an SD card using "dd":
