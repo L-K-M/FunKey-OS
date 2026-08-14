@@ -40,9 +40,14 @@ jobs:
 
       # A container that builds but points at the wrong sources is the failure
       # that is easiest to miss, because nothing goes wrong until hours later.
-      # Compared against GITHUB_REPOSITORY rather than a literal, so this
-      # survives a rename and tells a fork that its Dockerfile still points
-      # here -- which is the same bug, just someone else's copy of it.
+      # Compared against GITHUB_REPOSITORY -- the repository the workflow runs
+      # in -- rather than a literal, so this survives a rename, and so a fork
+      # running its own CI is told its Dockerfile still clones this repository:
+      # the same bug, in someone else's copy. On a fork's pull request back to
+      # here, that variable is this repository, and a Dockerfile pointing here
+      # is then the correct state, so passing is the right answer and not a
+      # missed one. Repointing the ARG default at another fork fails here on
+      # purpose; --build-arg is how you build other sources.
       # No -C: the image's WORKDIR is already the clone.
       - name: Check it cloned this repository
         run: |
