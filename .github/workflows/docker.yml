@@ -6,12 +6,12 @@ name: Docker build environment
 # not go on to compile the OS inside it.
 on:
   push:
-    branches: [ master ]
+    branches: [ rg_nano, master ]
     paths:
       - 'docker/**'
       - '.github/workflows/docker.yml'
   pull_request:
-    branches: [ master ]
+    branches: [ rg_nano, master ]
     paths:
       - 'docker/**'
       - '.github/workflows/docker.yml'

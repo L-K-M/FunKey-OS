@@ -3,15 +3,25 @@ name: Release
 # Publishes the SD card image, the firmware update file and the SDK as a GitHub
 # Release, so getting a build needs neither a two-hour compile nor a GitHub
 # account digging through a workflow run.
+#
+# Deliberately NOT triggered by pushing a tag. It was, and pushing
+# FunKey-OS-3.0.0 published images that had never been booted on hardware --
+# images built for the wrong console, which left an RG Nano at a grey screen.
+# Publishing has to be a decision someone makes after testing a build on the
+# device it names, not a side effect of tagging one. Restore the trigger below
+# once a build has been verified on hardware.
+#
+#  push:
+#    tags:
+#      # Upstream's release tags are FunKey-OS-X.Y.Z, and the version the OS
+#      # reports tracks them. Matching that rather than inventing a v-prefix
+#      # keeps a tag here comparable with the release it descends from.
+#      - 'FunKey-OS-*'
 on:
-  push:
-    tags:
-      # Upstream's release tags are FunKey-OS-X.Y.Z, and the version the OS
-      # reports tracks them. Matching that rather than inventing a v-prefix
-      # keeps a tag here comparable with the release it descends from.
-      - 'FunKey-OS-*'
   # Dispatch this with a tag selected as the ref; it refuses to run on a branch,
-  # since a release has to point at a fixed commit.
+  # since a release has to point at a fixed commit. The check job below still
+  # enforces the FunKey-OS-* name, so this is the only way to publish and it
+  # still cannot publish from a branch or an unrelated tag.
   workflow_dispatch:
 
 # Restrict every job, then grant write to publish alone. Omitting this block
@@ -59,6 +69,10 @@ jobs:
     permissions:
       contents: write
     steps:
+      # Needed only for the Makefile: the artifact names are asked of it rather
+      # than repeated here, so renaming them is a one-line edit in one file.
+      - uses: actions/checkout@v4
+
       # The build workflow uploads images/ and br.log as one artifact, rooted at
       # the repository directory, so the images arrive under build/images/.
       - name: Download the build
@@ -70,42 +84,59 @@ jobs:
       # Fail here, with the directory listing, rather than letting gh report a
       # bare "file not found" after the build has already run for two hours.
       - name: Check the expected images are there
+        id: artifacts
         run: |
           ls -lh build/images/
           missing=0
-          for f in FunKey-sdcard-DrUm78.img FunKey-rootfs-DrUm78.fwu FunKey-sdk-DrUm78.tar.gz; do
-            if [ ! -f "build/images/$f" ]; then
+          assets=()
+          while IFS= read -r f; do
+            [ -n "$f" ] || continue
+            if [ -f "build/images/$f" ]; then
+              assets+=("build/images/$f")
+            else
               echo "::error::expected image missing from the build: $f"
               missing=1
             fi
-          done
-          [ "$missing" -eq 0 ] || {
-            echo "The Makefile's image names and this workflow have diverged."
+          done < <(make -s print-artifacts)
+          [ "${#assets[@]}" -gt 0 ] || {
+            echo "::error::make print-artifacts named nothing"
             exit 1
           }
+          [ "$missing" -eq 0 ] || {
+            echo "The build did not produce every file the Makefile names."
+            exit 1
+          }
+          printf '%s\n' "${assets[@]}" > assets.txt
+          cat assets.txt
 
       - name: Publish the release
         env:
           GH_TOKEN: ${{ github.token }}
           TAG: ${{ github.ref_name }}
         run: |
-          cat > notes.md <<'NOTES'
-          FunKey OS with Favorites.
+          # Names come from the Makefile, so the table describes whatever was
+          # actually built rather than what this file remembers. mapfile rather
+          # than read: read returns non-zero at EOF without a trailing newline,
+          # which under the default bash -e would fail the step here.
+          mapfile -t names < <(make -s print-artifacts)
+          img=${names[0]}; fwu=${names[1]}; sdk=${names[2]}
+
+          cat > notes.md <<NOTES
+          **Starling** — FunKey OS for the **Anbernic RG Nano**, with Favorites.
+
+          > Built from the \`rg_nano\` branch. It will **not** boot a FunKey S,
+          > Q36 Mini or GBA Mini — those consoles use different kernels.
 
           | File | What it is |
           | --- | --- |
-          | `FunKey-sdcard-DrUm78.img` | Full SD card image. Write it to a card to install. This erases the card. |
-          | `FunKey-rootfs-DrUm78.fwu` | Firmware update. Copy it over USB to update in place, keeping games and saves. |
-          | `FunKey-sdk-DrUm78.tar.gz` | Cross-toolchain, needed only to build software for the console. |
+          | \`${img}\` | Full SD card image. Write it to a card to install. This erases the card. |
+          | \`${fwu}\` | Firmware update. Copy it over USB to update in place, keeping games and saves. |
+          | \`${sdk}\` | Cross-toolchain, needed only to build software for the console. |
 
           See the [README](https://github.com/L-K-M/FunKey-OS#install) for how to install or update.
           NOTES
 
-          assets=(
-            build/images/FunKey-sdcard-DrUm78.img
-            build/images/FunKey-rootfs-DrUm78.fwu
-            build/images/FunKey-sdk-DrUm78.tar.gz
-          )
+          mapfile -t assets < assets.txt
 
           # Re-runnable. gh release create refuses a tag that already has a
           # release, which would otherwise mean the first partial failure poisons

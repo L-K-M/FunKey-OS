@@ -20,6 +20,31 @@
 BRMAKE = buildroot/utils/brmake -C buildroot
 BR = make -C buildroot
 
+# Identity of this fork's builds, defined once here and printed by
+# print-artifacts so the release workflow asks rather than keeps its own copy.
+#
+# The FunKey- prefix is load-bearing and must not be dropped: the update file is
+# located by globbing /mnt/FunKey-*.fwu, and that glob runs from the firmware
+# already installed on the console -- S60recovery, the recovery menu and
+# update_partition. A name that stops matching is invisible to the device it was
+# built for.
+#
+# Everything after it exists so a file cannot be mistaken for another: the fork,
+# the version, and the console. That last one matters most. The branches for
+# each console use different kernels, and flashing the wrong one leaves a grey
+# screen at power-on with no launcher.
+OS_NAME    = Starling
+OS_VERSION = 3.0.0
+OS_DEVICE  = RG_Nano
+
+STAMP      = $(OS_NAME)-$(OS_VERSION)
+IMG        = FunKey-sdcard-$(STAMP)-$(OS_DEVICE).img
+IMG_PROD   = FunKey-sdcard-prod-$(STAMP)-$(OS_DEVICE).img
+FWU        = FunKey-rootfs-$(STAMP)-$(OS_DEVICE).fwu
+# No device: SDK/ is byte-identical across the console branches, so the
+# toolchain really is shared and a device suffix would claim otherwise.
+SDK_NAME   = FunKey-sdk-$(STAMP)
+
 # Strip quotes and then whitespaces
 qstrip = $(strip $(subst ",,$(1)))
 #"))
@@ -29,7 +54,7 @@ MESSAGE = echo "$(shell date +%Y-%m-%dT%H:%M:%S) $(TERM_BOLD)\#\#\# $(call qstri
 TERM_BOLD := $(shell tput smso 2>/dev/null)
 TERM_RESET := $(shell tput rmso 2>/dev/null)
 
-.PHONY: fun source image update defconfig clean distclean
+.PHONY: fun source image update defconfig clean distclean print-artifacts
 
 .IGNORE: _Makefile_
 
@@ -62,7 +87,7 @@ sdk: buildroot SDK/output/.config
 	@$(BRMAKE) BR2_EXTERNAL=../SDK O=../SDK/output prepare-sdk
 	@$(call MESSAGE,"Generating SDK tarball")
 	@export LC_ALL=C; \
-	SDK=FunKey-sdk-DrUm78; \
+	SDK=$(SDK_NAME); \
 	grep -lr "$(shell pwd)/SDK/output/host" SDK/output/host | while read -r FILE ; do \
 		if file -b --mime-type "$${FILE}" | grep -q '^text/'; then \
 			sed -i "s|$(shell pwd)/SDK/output/host|/opt/$${SDK}|g" "$${FILE}"; \
@@ -105,7 +130,7 @@ image: fun
 	@mkdir -p root tmp
 	@./Recovery/output/host/bin/genimage --loglevel 0 --inputpath .
 	@rm -rf root tmp
-	@mv images/sdcard.img images/FunKey-sdcard-DrUm78.img
+	@mv images/sdcard.img images/$(IMG)
 
 image-prod: fun
 	@$(call MESSAGE,"Creating disk image")
@@ -113,7 +138,7 @@ image-prod: fun
 	@mkdir -p root tmp
 	@./Recovery/output/host/bin/genimage --loglevel 0 --config "genimage-prod.cfg" --inputpath .
 	@rm -rf root tmp
-	@mv images/sdcard-prod.img images/FunKey-sdcard-prod-DrUm78.img
+	@mv images/sdcard-prod.img images/$(IMG_PROD)
 
 update: fun
 	@$(call MESSAGE,"Creating update file")
@@ -128,7 +153,7 @@ update: fun
 	@cd tmp && \
 	echo sw-description rootfs.ext2.gz update_partition | \
 	tr " " "\n" | \
-	cpio -o -H crc --quiet > ../images/FunKey-rootfs-DrUm78.fwu
+	cpio -o -H crc --quiet > ../images/$(FWU)
 	@rm -rf tmp
 
 defconfig:
@@ -150,6 +175,15 @@ clean:
 distclean: clean
 	@$(call MESSAGE,"Really clean everything")
 	@rm -rf download images
+
+# What a release publishes, in upload order. The release workflow reads this
+# rather than repeating the names, so a rename here cannot leave the workflow
+# asserting files that no longer get built -- a failure that would otherwise
+# only surface at the end of a two-hour run.
+print-artifacts:
+	@echo $(IMG)
+	@echo $(FWU)
+	@echo $(SDK_NAME).tar.gz
 
 FunKey/output/.config:
 	@$(call MESSAGE,"Configure FunKey")

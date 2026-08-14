@@ -1,156 +1,204 @@
-[![FunKey-OS Build](https://github.com/L-K-M/FunKey-OS/actions/workflows/build.yml/badge.svg?branch=master)](https://github.com/L-K-M/FunKey-OS/actions/workflows/build.yml?query=branch%3Amaster)
+[![Build](https://github.com/L-K-M/FunKey-OS/actions/workflows/build.yml/badge.svg?branch=master)](https://github.com/L-K-M/FunKey-OS/actions/workflows/build.yml?query=branch%3Amaster)
 
-# FunKey OS — Favorites fork
+# Starling 3.0.0
 
-FunKey OS for the [FunKey S](https://www.funkey-project.com/) and compatible
-handhelds, with a **Favorites** feature added.
+**FunKey OS for the [Anbernic RG Nano](https://anbernic.com/), with a Favorites
+feature added.**
 
-Forked from [DrUm78/FunKey-OS](https://github.com/DrUm78/FunKey-OS), itself a
-fork of the original
-[FunKey-Project/FunKey-OS](https://github.com/FunKey-Project/FunKey-OS).
+Mark any game with **Y** and it appears under **Favorites**, the first entry in
+the main menu — one list gathering games from every system, each still launching
+with its own emulator.
 
-> ## ⚠️ Do not install this yet
+Everything else is stock FunKey OS. Starling is a fork of the `rg_nano` branch
+of [DrUm78/FunKey-OS](https://github.com/DrUm78/FunKey-OS/tree/rg_nano), which
+is itself a fork of
+[FunKey-Project/FunKey-OS](https://github.com/FunKey-Project/FunKey-OS). For
+what FunKey OS *is*, read
+[upstream's README](https://github.com/DrUm78/FunKey-OS/blob/rg_nano/README.md);
+this one covers only what Starling adds and how to install it.
+
+> ### ⚠️ Not yet verified on hardware
 >
-> **This has never been verified on hardware.** The 3.0.0 release was published
-> on the strength of a green CI build, and installing that `.fwu` left an
-> RG Nano showing a grey screen at power-on. The release has been withdrawn.
->
-> The cause is not yet known. Until it is, build from source only if you are
-> prepared to recover the device, and use
-> [DrUm78/FunKey-OS](https://github.com/DrUm78/FunKey-OS/releases) for anything
-> you actually want to play on.
->
-> Note also that this tree contains no RG Nano, Q36 Mini or GBA Mini support of
-> its own: it builds one image, and `etc/hwrevision` is hardcoded to
-> `FunKey_S Rev.F`.
->
-> If you have already installed it, see [Recovery](#recovery).
+> No Starling build has been booted on a console. Until one has, treat this as
+> source code rather than firmware, and use
+> [DrUm78's releases](https://github.com/DrUm78/FunKey-OS/releases) for a
+> console you actually want to play on.
 
-## What is different from upstream
+## This build is for the RG Nano and no other console
 
-- **[Favorites](#favorites)** — mark a game with **Y** and reach every game you
-  have marked, across all systems, from one entry in the main menu.
-- **Working build workflow** — the CI pinned a runner image GitHub has retired,
-  so it could never run. It builds on `ubuntu-22.04` and publishes the images.
-- **Working Docker build** — the container was based on Debian buster, which is
-  past end of life and no longer served, so `apt-get update` failed; it also
-  cloned upstream, so it built without Favorites even when run from here.
+Upstream keeps **one branch per console**, and they are not interchangeable —
+each uses a different kernel:
 
-For what FunKey OS is and how it works, see
-**[upstream's README](https://github.com/DrUm78/FunKey-OS/blob/master/README.md)**.
-Its build instructions clone upstream, so use [Build from source](#build-from-source)
-below instead, or the result will not have Favorites.
+| Upstream branch | Console | Kernel |
+| --- | --- | --- |
+| **`rg_nano`** | **Anbernic RG Nano** ← Starling | **`v1.0-rg-nano`** |
+| `master` | FunKey S | `v1.0.3-funkey-s` |
+| `q36_mini` | Q36 Mini | |
+| `gba_mini` | GBA Mini | |
 
-## Install
+They also differ in kernel config for both partitions, the buildroot submodule,
+and RG Nano-specific audio, GPIO and sysctl init.
 
-There is no published release — it was withdrawn, see the warning above. Get
-`FunKey-sdcard-DrUm78.img` by [building from source](#build-from-source).
+**Flashing a build meant for a different console gives a grey screen at power-on
+and nothing else** — on Recovery as well as the main OS, because both partitions
+carry their own copy of the kernel. Nothing in a checkout tells you which branch
+you are on, which is exactly how it happens.
 
-Write it to an SD card with
-[Balena Etcher](https://www.balena.io/etcher/), or:
+Starling's filenames therefore carry the console, the version and the fork:
 
-```bash
-sudo dd if=FunKey-sdcard-DrUm78.img of=/dev/sdX bs=4M conv=fsync status=progress
-```
+| File | What it is |
+| --- | --- |
+| `FunKey-sdcard-Starling-3.0.0-RG_Nano.img` | Full SD card image — installs Starling, erasing the card |
+| `FunKey-rootfs-Starling-3.0.0-RG_Nano.fwu` | Firmware update — replaces the OS in place, keeping games and saves |
+| `FunKey-sdk-Starling-3.0.0.tar.gz` | Cross-toolchain, only needed to build software *for* the console |
 
-> **Warning:** make sure `/dev/sdX` really is the SD card and not one of your
-> own disks. Writing the image erases everything already on that card, unlike
-> the update below.
-
-Insert the card into the console and power it on.
-
-## Update
-
-Updating replaces the OS only — games, saves and favorites are kept.
-
-1. Get `FunKey-rootfs-DrUm78.fwu` by [building from source](#build-from-source).
-   Read the warning above first — these images are unverified on hardware.
-2. Connect the console to your computer over USB.
-3. In the game launcher press **ON/OFF**, select **MOUNT USB**, press **A** twice.
-4. Copy the `.fwu` onto the drive that appears.
-5. Eject the drive on your computer, then press **A** twice on the console.
-
-The console applies the update and returns to the launcher.
-
-## Recovery
-
-If the console shows a grey screen at power-on and never reaches the launcher,
-the Recovery partition is still intact: an update writes only `/dev/mmcblk0p2`,
-and Recovery lives on `p1`.
-
-**Hold FN + START while powering on.** `S60recovery` reads the key matrix at
-boot and opens the recovery menu instead of booting the OS.
-
-1. Select the **USB** entry and press **A** to mount. The console appears as a
-   drive on your computer.
-2. Delete the `.fwu` you copied, and put a known-good one in its place —
-   [DrUm78's releases](https://github.com/DrUm78/FunKey-OS/releases), or
-   whatever build the console shipped with.
-3. Eject the drive on your computer, then press **A** again to unmount — that
-   is what runs `swupdate` on any `/mnt/FunKey-*.fwu`. Eject first: flashing
-   starts the moment you unmount, so a copy the host has not flushed would be
-   flashed truncated.
-4. Select **EXIT RECOVERY**.
-
-The **INFO** entry is worth checking first: it mounts `p2` read-only and prints
-the rootfs version, which tells you whether the filesystem is intact at all.
-**NETWORK: ENABLED** plus SSH over USB gets you a shell for reading logs.
+The `FunKey-` prefix is not decoration and must not be removed: the console
+finds an update by globbing `/mnt/FunKey-*.fwu`, and that glob runs from the
+firmware **already installed**, in `S60recovery`, the recovery menu and
+`update_partition`. A name that stops matching is invisible to the device it was
+built for. The SDK carries no console because `SDK/` is identical across the
+branches — the toolchain genuinely is shared.
 
 ## Favorites
 
-**Favorites** is the first entry in the main menu. It gathers the games you have
-marked from every system and launches each with its own emulator. It is empty
-until you mark something.
+**Favorites** is the first entry in the main menu. It is empty until you mark
+something.
 
 | Button | Action |
 | --- | --- |
 | **Y** | Mark the highlighted game as a favorite, or unmark it |
 | **X** | Unmark the highlighted game |
-| **START** | Switch between favorites and all games for the current system |
+| **START** | Switch between favorites and all games, within one system |
 | **FN + L** / **FN + R** | Previous / next playlist |
 
-Each system keeps its own list, and the menu entry is assembled from those, so
-nothing can fall out of sync. The lists live on the writable partition at
-`/mnt/FunKey/.retrofe/collections/<System>/playlists/favorites.txt` and survive
-a firmware update.
+Each system keeps its own list and the Favorites menu is assembled from those,
+so there is no second list to fall out of sync. Marking a game from inside
+Favorites writes back to the system it actually belongs to. The lists live on
+the writable partition:
+
+```
+/mnt/FunKey/.retrofe/collections/<System>/playlists/favorites.txt
+```
+
+so they survive a firmware update. Games launch with their own system's
+emulator, whether started from Favorites or from the system's own menu.
 
 All 13 bundled themes ship Favorites artwork. A theme you add yourself needs a
-`collections/Favorites/system_artwork/` directory, or the entry falls back to a
-plain text label — `tools/gen-favorites-artwork.py` generates one.
+`collections/Favorites/system_artwork/` directory or the entry falls back to a
+plain text label; `tools/gen-favorites-artwork.py` generates one.
+
+## Install
+
+Write the `.img` to an SD card — this erases everything on the card:
+
+```bash
+sudo dd if=FunKey-sdcard-Starling-3.0.0-RG_Nano.img of=/dev/sdX bs=4M conv=fsync status=progress
+```
+
+> **Check `/dev/sdX` twice.** Naming one of your own disks here destroys it.
+
+[Balena Etcher](https://www.balena.io/etcher/) does the same thing with more
+guard rails. Then insert the card and power on; the first boot resizes the
+filesystem and creates the swap and share partitions.
+
+## Update
+
+Replaces the OS only — games, saves and favorites are kept.
+
+1. Connect the console to your computer over USB.
+2. In the launcher press **ON/OFF**, select **MOUNT USB**, press **A** twice.
+3. Copy `FunKey-rootfs-Starling-3.0.0-RG_Nano.fwu` onto the drive that appears.
+4. **Eject the drive on your computer**, then press **A** twice on the console.
+
+Ejecting first matters: unmounting is what starts the flash, so a copy your
+computer has not finished writing would be flashed truncated.
+
+## Recovery
+
+If the console shows a grey screen at power-on and never reaches the launcher,
+Recovery is almost certainly intact — an update writes only `/dev/mmcblk0p2`,
+and Recovery lives on `p1`.
+
+**Hold FN + START while powering on.** u-boot reads the key matrix over I2C and
+boots `p1` instead of the flagged partition. Hold the buttons *before* pressing
+power: with `bootdelay=0` and `delay=1` it samples once, immediately.
+
+**If that does not work** — the combination is named for FunKey S hardware and
+may not match any pair of buttons on your console — set the boot flag from a
+computer instead. u-boot boots whichever partition is flagged, so this selects
+Recovery with no buttons at all, and it is exactly what `normal_mode` does in
+reverse (`sfdisk -A /dev/mmcblk0 2`):
+
+```bash
+diskutil unmountDisk /dev/diskN     # macOS; use lsblk on Linux
+sudo fdisk -e /dev/diskN
+  flag 1
+  write
+  quit
+```
+
+Either way you land on the recovery menu:
+
+1. Select **USB** and press **A** to mount. The console appears as a drive.
+2. Replace the `.fwu` with a known-good one — a Starling release, or
+   [DrUm78's](https://github.com/DrUm78/FunKey-OS/releases).
+3. Eject the drive on your computer, then press **A** again to unmount. That is
+   what runs `swupdate`.
+4. **EXIT RECOVERY**, which runs `normal_mode` and flags `p2` again — undoing
+   the boot-flag change above.
+
+**INFO** is worth opening first: it mounts `p2` read-only and prints the rootfs
+version, which tells you whether the filesystem survived at all.
+
+> If the console is unresponsive even from a card you know is good, it can latch
+> into a state a power cycle will not clear. Opening it and briefly
+> disconnecting the battery resets it.
+
+### Getting logs out
+
+`/usr/games/log.txt` is a symlink to `/tmp/retrofe.log`, and `/tmp` is tmpfs, so
+RetroFE's log never survives a power cycle. To capture one, mount `p2`
+read-write from a Recovery shell and repoint it at the share partition:
+
+```sh
+ln -sf /mnt/retrofe.log /usr/games/log.txt
+```
+
+Also redirect the frontend, since `/root/.profile` ends with
+`frontend init >/dev/null 2>&1 &` and discards anything printed before that log
+is even open. Both files are then readable from the FAT share partition on any
+computer.
 
 ## Build from source
 
-Both paths below produce the same files in `images/`, and both compile the
-whole OS from source: budget **1.5–3 hours** and **~12 GB** of free disk.
+Both routes produce the same files in `images/` and compile the whole OS:
+budget **1.5–3 hours** and **~12 GB** of free disk.
 
 ### With Docker
 
 Only Docker is needed — the container brings its own toolchain and clones this
-fork itself, so there is nothing to check out first.
+repository itself.
 
 ```bash
 curl -O https://raw.githubusercontent.com/L-K-M/FunKey-OS/master/docker/Dockerfile
-docker build --platform linux/amd64 -t funkey-os .
-docker run --platform linux/amd64 --name funkey-os funkey-os
-docker cp funkey-os:/home/funkey/FunKey-OS/images ./images
+docker build --platform linux/amd64 -t starling .
+docker run --platform linux/amd64 --name starling starling
+docker cp starling:/home/funkey/FunKey-OS/images ./images
 ```
 
 > **`--platform linux/amd64` is not optional on Apple Silicon.** The
-> cross-toolchain the build downloads is an x86_64 binary, so it can only run in
-> an x86_64 container. The flag does nothing on an Intel or AMD machine, and
-> makes Docker Desktop emulate one on an ARM Mac — slower, but it completes.
-> Without it the container is ARM, and the build fails minutes in at
-> `>>> toolchain-external-custom … Configuring`.
+> cross-toolchain the build downloads is an x86_64 binary and can only run in an
+> x86_64 container. The flag is a no-op on Intel and AMD machines and makes
+> Docker Desktop emulate one on an ARM Mac — slower, but it finishes. Without it
+> the build dies a few minutes in at `>>> toolchain-external-custom … Configuring`.
 
-To build a different fork or branch, pass
-`--build-arg FUNKEY_OS_REPO=<url>` and `--build-arg FUNKEY_OS_REF=<branch>`
-to `docker build`.
+Pass `--build-arg FUNKEY_OS_REPO=<url>` and `--build-arg FUNKEY_OS_REF=<branch>`
+to build something else; the default is this repository's `master`.
 
 ### Natively
 
-Tested on Ubuntu 22.04 and Debian 12; this is the package set the CI uses.
-Ubuntu 24.04 and Debian 13 dropped `python3-distutils`, which buildroot still
-wants.
+Tested on Ubuntu 22.04 and Debian 12 — the package set CI uses. Ubuntu 24.04 and
+Debian 13 dropped `python3-distutils`, which buildroot still wants.
 
 ```bash
 sudo apt install make binutils build-essential gcc g++ patch bzip2 perl cpio \
@@ -163,6 +211,34 @@ cd FunKey-OS
 make sdk all
 ```
 
-`make sdk` builds the cross-toolchain and `make all` the OS. The files that end
-up in `images/` are the same ones a release ships, so [Install](#install) and
-[Update](#update) apply from there on.
+`make sdk` builds the cross-toolchain and `make all` the OS. `make -s
+print-artifacts` prints the three filenames a release publishes; the Makefile is
+the only place they are defined.
+
+## What Starling changes
+
+Beyond Favorites, all of it fixes things that were broken in the fork it started
+from:
+
+- **The build workflow ran on a runner image GitHub retired**, so it could never
+  complete — every run sat queued forever. It builds on `ubuntu-22.04`.
+- **The Docker build was based on Debian buster**, past end of life and no
+  longer served, so `apt-get update` failed outright. It also cloned upstream
+  rather than the fork, so it produced an image without Favorites even when run
+  from here.
+- **A separate workflow validates the container** in about 45 seconds, rather
+  than a two-hour OS build that never reads `docker/` at all.
+- **Releases are published by hand** (`workflow_dispatch`), never by pushing a
+  tag. A tag push is how a build for the wrong console got published once
+  already.
+
+## Branches
+
+| Branch | Console | |
+| --- | --- | --- |
+| `master` | Anbernic RG Nano | Starling — tracks upstream `rg_nano` |
+| `funkey-s` | FunKey S | where Favorites was first written; tracks upstream `master`, not maintained |
+
+Favorites itself is device-independent: it touches RetroFE, collections and
+theme artwork, none of which the console branches modify. Porting it to
+`q36_mini` or `gba_mini` would be the same operation.
