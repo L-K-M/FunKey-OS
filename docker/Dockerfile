@@ -1,4 +1,12 @@
-FROM debian:buster-20200514-slim
+# buster reached end of life and is no longer served by deb.debian.org, so
+# apt-get update inside it fails outright. bookworm is current stable and
+# carries every package below.
+FROM debian:bookworm-slim
+
+# Which sources to build. Defaults to this fork, so that a plain "docker build"
+# produces an image with Favorites; override to build another fork or branch.
+ARG FUNKEY_OS_REPO=https://github.com/L-K-M/FunKey-OS.git
+ARG FUNKEY_OS_REF=master
 
 LABEL \
 	maintainer="Michel Stempin <michel.stempin@funkey-project.com>" \
@@ -35,8 +43,8 @@ RUN \
 	# MANDATORY source fetching tools
 	wget \
 	# OPTIONAL recommended dependencies
-	python \
-	python-dev \
+	# (python/python-dev were Python 2 and no longer exist; buildroot builds
+	# with python3, below)
 	xxd \
 	# OPTIONAL configuration interface dependencies
 	libncurses5-dev \
@@ -92,7 +100,8 @@ RUN \
 	echo "funkey:funkey" | chpasswd && \
 	#
 	# Clone the FunKey-OS repository
-	git clone https://github.com/DrUm78/FunKey-OS.git /home/funkey/FunKey-OS && \
+	git clone "${FUNKEY_OS_REPO}" /home/funkey/FunKey-OS && \
+	git -C /home/funkey/FunKey-OS checkout "${FUNKEY_OS_REF}" && \
 	#
 	# Set file ownership
 	chown -R funkey:funkey /home/funkey
