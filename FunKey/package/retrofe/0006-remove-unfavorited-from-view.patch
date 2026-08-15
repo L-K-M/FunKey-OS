@@ -1,0 +1,88 @@
+diff --git a/RetroFE/Source/Graphics/Page.cpp b/RetroFE/Source/Graphics/Page.cpp
+index 8c94639..540869b 100755
+--- a/RetroFE/Source/Graphics/Page.cpp
++++ b/RetroFE/Source/Graphics/Page.cpp
+@@ -1264,6 +1264,26 @@ void Page::removePlaylist()
+ 
+     bool changed = false;
+ 
++    // Whether the list on screen holds this game right now, and where. On a
++    // favorites-narrowed view -- the Favorites menu, whose "all" is the
++    // narrowed list, or a system browsed on its favorites playlist -- it must
++    // leave the list you are looking at. A plain all-games list keeps it,
++    // merely unmarked: that list is every game, not the favorites.
++    // Captured before any erase, because the first block below may already be
++    // erasing from the very vector on screen.
++    bool visibleBefore = false;
++    unsigned int shownIndex = 0;
++
++    if(playlist_->second)
++    {
++        std::vector<Item *>::iterator shown = std::find(playlist_->second->begin(), playlist_->second->end(), selectedItem_);
++        if(shown != playlist_->second->end())
++        {
++            visibleBefore = true;
++            shownIndex = shown - playlist_->second->begin();
++        }
++    }
++
+     // Drop it from the page being viewed so the menu updates immediately...
+     std::vector<Item *> *items = favoritesOf(collection);
+     if(items)
+@@ -1294,6 +1314,18 @@ void Page::removePlaylist()
+         }
+     }
+ 
++    // The narrowed "all" of an aggregate menu is neither the favorites
++    // playlist the first block emptied nor the owner's list the second one
++    // did; drop the game from the list on screen as well.
++    if(visibleBefore && owner != collection && playlist_->second)
++    {
++        std::vector<Item *>::iterator it = std::find(playlist_->second->begin(), playlist_->second->end(), selectedItem_);
++        if(it != playlist_->second->end())
++        {
++            playlist_->second->erase(it);
++        }
++    }
++
+     // ScrollingList redraws from Item::title, so this is what makes the
+     // toggle visible at once rather than only after leaving the menu and
+     // coming back to it.
+@@ -1303,6 +1335,37 @@ void Page::removePlaylist()
+     if(changed) owner->saveRequest = true;
+ 
+     owner->Save();
++
++    // If the vector the menus are drawing from lost the game, hand it back --
++    // setItems() re-clamps every index against the new size -- and leave the
++    // highlight where the removed game was, now held by its neighbour.
++    // Without this the row lingered, unmarked, until the menu was left and
++    // entered again.
++    bool stillShown = false;
++
++    if(playlist_->second)
++    {
++        stillShown = std::find(playlist_->second->begin(), playlist_->second->end(), selectedItem_) != playlist_->second->end();
++    }
++
++    if(visibleBefore && !stillShown)
++    {
++        unsigned int keep = shownIndex;
++        if(playlist_->second->size() > 0 && keep >= playlist_->second->size())
++        {
++            keep = playlist_->second->size() - 1;
++        }
++
++        for(std::vector<ScrollingList *>::iterator it = activeMenu_.begin(); it != activeMenu_.end(); it++)
++        {
++            ScrollingList *menu = *it;
++            menu->setItems(playlist_->second);
++            menu->setScrollOffsetIndex(keep);
++        }
++
++        onNewItemSelected( );
++        reallocateMenuSpritePoints( );
++    }
+ }
+ 
+ 
