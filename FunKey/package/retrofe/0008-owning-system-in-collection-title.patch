@@ -1,0 +1,42 @@
+diff --git a/RetroFE/Source/Graphics/Component/ReloadableScrollingText.cpp b/RetroFE/Source/Graphics/Component/ReloadableScrollingText.cpp
+index 5b4f555..3abb173 100755
+--- a/RetroFE/Source/Graphics/Component/ReloadableScrollingText.cpp
++++ b/RetroFE/Source/Graphics/Component/ReloadableScrollingText.cpp
+@@ -337,6 +337,16 @@ void ReloadableScrollingText::reloadTexture( bool previousItem )
+         else if (type_ == "collectionName")
+         {
+             text = page.getCollectionName();
++
++            // On an aggregate page -- Favorites is assembled from .sub files
++            // -- the page name reads "Favorites" for every game, which is
++            // the one place it says nothing. Show the collection the game
++            // actually belongs to. Everywhere else the item's collection is
++            // the page's own, so this changes nothing there.
++            if(selectedItem->collectionInfo && selectedItem->collectionInfo->name != text)
++            {
++                text = selectedItem->collectionInfo->name;
++            }
+         }
+         else if (type_ == "collectionSize")
+         {
+diff --git a/RetroFE/Source/Graphics/Component/ReloadableText.cpp b/RetroFE/Source/Graphics/Component/ReloadableText.cpp
+index 5dbd1c0..7454c8d 100755
+--- a/RetroFE/Source/Graphics/Component/ReloadableText.cpp
++++ b/RetroFE/Source/Graphics/Component/ReloadableText.cpp
+@@ -201,6 +201,16 @@ void ReloadableText::ReloadTexture( bool previousItem )
+         else if (type_ == "collectionName")
+         {
+             text = page.getCollectionName();
++
++            // On an aggregate page -- Favorites is assembled from .sub files
++            // -- the page name reads "Favorites" for every game, which is
++            // the one place it says nothing. Show the collection the game
++            // actually belongs to. Everywhere else the item's collection is
++            // the page's own, so this changes nothing there.
++            if(selectedItem->collectionInfo && selectedItem->collectionInfo->name != text)
++            {
++                text = selectedItem->collectionInfo->name;
++            }
+         }
+         else if (type_ == "collectionSize")
+         {
