@@ -610,4 +610,10 @@
 
 
 
+    <!-- Transient acknowledgement for actions that otherwise change nothing
+         on screen, such as favoriting a game. Font, colour and size are
+         inherited from the layout above. Layer 19 because Page::NUM_LAYERS
+         is 20 and the check is "< NUM_LAYERS", so a layer 20 component is
+         never drawn. -->
+    <statusText x="center" y="224" xOrigin="center" yOrigin="center" layer="19" alpha="1"/>
 </layout>

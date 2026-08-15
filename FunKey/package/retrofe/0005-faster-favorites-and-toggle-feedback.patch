@@ -54,10 +54,73 @@ index 91adfa6..0cedb9f 100755
      std::string name;
      std::string lowercaseName();
 diff --git a/RetroFE/Source/Graphics/Page.cpp b/RetroFE/Source/Graphics/Page.cpp
-index a17bfde..61fcab6 100755
+index a17bfde..8c94639 100755
 --- a/RetroFE/Source/Graphics/Page.cpp
 +++ b/RetroFE/Source/Graphics/Page.cpp
-@@ -1260,6 +1260,11 @@ void Page::removePlaylist()
+@@ -35,6 +35,7 @@ Page::Page(Configuration &config)
+     , scrollDirectionForward_(false)
+     , selectedItem_(NULL)
+     , textStatusComponent_(NULL)
++    , statusMessageTime_(0.0f)
+     , loadSoundChunk_(NULL)
+     , unloadSoundChunk_(NULL)
+     , highlightSoundChunk_(NULL)
+@@ -217,6 +218,16 @@ unsigned int Page::getMenuDepth()
+ }
+ 
+ 
++// A line of text shown for a moment and then cleared, by whichever component
++// the theme declares as its statusText. Used to acknowledge an action that
++// otherwise leaves the screen looking exactly as it did before.
++void Page::setStatusMessage(const std::string &message, float seconds)
++{
++    statusMessage_     = message;
++    statusMessageTime_ = seconds;
++}
++
++
+ void Page::setStatusTextComponent(Text *t)
+ {
+     textStatusComponent_ = t;
+@@ -1094,11 +1105,34 @@ void Page::update(float dt)
+         }
+     }
+ 
++    if(statusMessageTime_ > 0.0f)
++    {
++        statusMessageTime_ -= dt;
++
++        if(statusMessageTime_ <= 0.0f)
++        {
++            statusMessageTime_ = 0.0f;
++            statusMessage_.clear();
++        }
++    }
++
+     if(textStatusComponent_)
+     {
+-        std::string status;
+-	config_.setProperty("status", status);
+-	textStatusComponent_->setText(status);
++        // A message set by setStatusMessage wins for as long as it lasts;
++        // otherwise show whatever set the "status" property.
++        //
++        // That fallback was a setProperty, which wrote an empty string over the
++        // property and then displayed it -- so the status line was permanently
++        // blank no matter what put anything there, and the property was cleared
++        // on every frame.
++        std::string status = statusMessage_;
++
++        if(status.empty())
++        {
++            config_.getProperty("status", status);
++        }
++
++        textStatusComponent_->setText(status);
+     }
+ 
+     for(std::vector<Component *>::iterator it = LayerComponents.begin(); it != LayerComponents.end(); ++it)
+@@ -1260,6 +1294,12 @@ void Page::removePlaylist()
          }
      }
  
@@ -65,11 +128,12 @@ index a17bfde..61fcab6 100755
 +    // toggle visible at once rather than only after leaving the menu and
 +    // coming back to it.
 +    if(changed) CollectionInfo::markFavorite(selectedItem_, false);
++    if(changed) setStatusMessage("Removed from favorites", 1.5f);
 +
      if(changed) owner->saveRequest = true;
  
      owner->Save();
-@@ -1301,6 +1306,11 @@ void Page::addPlaylist()
+@@ -1301,6 +1341,12 @@ void Page::addPlaylist()
          }
      }
  
@@ -77,10 +141,32 @@ index a17bfde..61fcab6 100755
 +    // toggle visible at once rather than only after leaving the menu and
 +    // coming back to it.
 +    if(changed) CollectionInfo::markFavorite(selectedItem_, true);
++    if(changed) setStatusMessage("Added to favorites", 1.5f);
 +
      if(changed) owner->saveRequest = true;
  
      owner->Save();
+diff --git a/RetroFE/Source/Graphics/Page.h b/RetroFE/Source/Graphics/Page.h
+index 5b63ccf..f0abd63 100755
+--- a/RetroFE/Source/Graphics/Page.h
++++ b/RetroFE/Source/Graphics/Page.h
+@@ -86,6 +86,7 @@ public:
+     bool isGraphicsIdle();
+     bool isMenuIdle();
+     void setStatusTextComponent(Text *t);
++    void setStatusMessage(const std::string &message, float seconds);
+     void update(float dt);
+     void cleanup();
+     void draw();
+@@ -154,6 +155,8 @@ private:
+     Item *selectedItem_;
+     Item *prevSelectedItem_;
+     Text *textStatusComponent_;
++    std::string statusMessage_;
++    float statusMessageTime_;
+     Sound *loadSoundChunk_;
+     Sound *unloadSoundChunk_;
+     Sound *highlightSoundChunk_;
 diff --git a/RetroFE/Source/RetroFE.cpp b/RetroFE/Source/RetroFE.cpp
 index e3478f6..d03b958 100755
 --- a/RetroFE/Source/RetroFE.cpp

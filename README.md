@@ -70,8 +70,11 @@ something.
 | **START** | Switch between favorites and all games, within one system |
 | **FN + L** / **FN + R** | Previous / next playlist |
 
-A favorited game is shown with a `*` in front of its name, so pressing **Y**
-visibly does something and you can see what is marked without opening Favorites.
+Pressing **Y** does two visible things: a favorited game keeps a `*` in front of
+its name, so you can see what is marked without opening Favorites, and a short
+**Added to favorites** / **Removed from favorites** message appears for a
+moment. All 13 bundled themes show the message; a theme you add yourself needs a
+`<statusText/>` element in its `layout.xml` or it will show only the `*`.
 
 Each system keeps its own list and the Favorites menu is assembled from those,
 so there is no second list to fall out of sync. Marking a game from inside

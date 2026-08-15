@@ -273,4 +273,10 @@
     <!--Battery in status bar-->
     <battery width="48" height="20" reloadPeriod="3" fontColor="274813" alpha="0.3" x="right" xOrigin="right" xOffset="-5" y="top" yOrigin="center" yOffset="18" layer="17" ></battery>
 
+    <!-- Transient acknowledgement for actions that otherwise change nothing
+         on screen, such as favoriting a game. Font, colour and size are
+         inherited from the layout above. Layer 19 because Page::NUM_LAYERS
+         is 20 and the check is "< NUM_LAYERS", so a layer 20 component is
+         never drawn. -->
+    <statusText x="center" y="224" xOrigin="center" yOrigin="center" layer="19" alpha="1"/>
 </layout>
