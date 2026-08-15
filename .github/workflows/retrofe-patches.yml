@@ -1,0 +1,94 @@
+name: RetroFE Patch Check
+
+# The RetroFE patches in FunKey/package/retrofe/ are currently validated only
+# by the tail end of a full OS build -- hours away, and the runner's time is
+# spent before the first compile error is even reached. Whether the series
+# still applies to the pinned upstream tag can be checked in under a minute,
+# so it is checked here on every change to it.
+on:
+  push:
+    branches: [ rg_nano, master ]
+    paths:
+      - 'FunKey/package/retrofe/**'
+      - '.github/workflows/retrofe-patches.yml'
+  pull_request:
+    branches: [ rg_nano, master ]
+    paths:
+      - 'FunKey/package/retrofe/**'
+      - '.github/workflows/retrofe-patches.yml'
+  # Same reasoning as build.yml: manual dispatch is useful for reruns after a
+  # retrofe.mk re-pin or an upstream tag change, and workflow_dispatch cannot
+  # take a branch filter anyway.
+  workflow_dispatch:
+
+# The job only reads; give it the least token there is.
+permissions:
+  contents: read
+
+concurrency:
+  group: retrofe-patches-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  apply:
+    name: Apply the patch series to the pinned tag
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+
+    steps:
+    - uses: actions/checkout@v4
+
+    - name: Clone RetroFE at the version the package pins
+      run: |
+        # retrofe.mk carries RETROFE_VERSION = <tag>; the patches are written
+        # against exactly that tree, so read it back rather than restating a
+        # tag here for the two to drift apart. Accept every assignment form
+        # make allows (=, :=, ?=) and strip any trailing comment or whitespace
+        # (and a CRLF, should the file ever be edited on Windows) so neither a
+        # perfectly reasonable inline note nor a different assignment operator
+        # can produce a tag name that git clone then fails to find.
+        version="$(sed -nE 's/^RETROFE_VERSION[[:space:]]*(:|\?)?=[[:space:]]*//p' \
+          FunKey/package/retrofe/retrofe.mk | head -n1 | sed 's/[[:space:]#].*$//')"
+        if [ -z "$version" ]; then
+          echo "could not read RETROFE_VERSION from retrofe.mk" >&2
+          exit 1
+        fi
+        echo "Pinned RetroFE version: $version"
+        git clone --quiet --branch "$version" --depth 1 \
+          https://github.com/FunKey-Project/RetroFE.git retrofe
+        # A shallow clone still has an index; git apply only needs the worktree.
+
+    - name: Apply the series in the order buildroot will
+      run: |
+        # Match buildroot's apply-patches.sh, which sorts patches under
+        # LC_ALL=C: a different collation could apply them in a different
+        # order than the device build does.
+        export LC_ALL=C
+        shopt -s nullglob
+        patches=(FunKey/package/retrofe/*.patch)
+        if [ ${#patches[@]} -eq 0 ]; then
+          echo "no patches found" >&2
+          exit 1
+        fi
+        cd retrofe
+        for patch in "${patches[@]}"; do
+          echo ">>> applying $(basename "$patch")"
+          # Buildroot's support/scripts/apply-patches.sh applies with plain
+          # patch(1) using exactly these flags, so use them too: the point of
+          # this job is to predict the device build, and patch(1) will accept
+          # fuzz git apply would refuse (and vice versa) -- a series that only
+          # applies under one of the two has not been validated.
+          if ! patch -g0 -p1 --no-backup-if-mismatch -N -f -i "../$patch"; then
+            echo "FAILED to apply $(basename "$patch")" >&2
+            exit 1
+          fi
+        done
+        echo "Applied ${#patches[@]} patches cleanly."
+
+    - name: Show the resulting tree stats
+      run: |
+        cd retrofe
+        # Stage everything the patches created, including files a patch adds
+        # that git diff alone would not show, then print the summary.
+        git add -A
+        git diff --cached --stat | tail -5
