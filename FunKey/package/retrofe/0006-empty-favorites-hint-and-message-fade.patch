@@ -1,18 +1,19 @@
 diff --git a/RetroFE/Source/Graphics/Page.cpp b/RetroFE/Source/Graphics/Page.cpp
-index 540869b..598f8d2 100755
+index 540869b..c9db812 100755
 --- a/RetroFE/Source/Graphics/Page.cpp
 +++ b/RetroFE/Source/Graphics/Page.cpp
-@@ -36,6 +36,9 @@ Page::Page(Configuration &config)
+@@ -36,6 +36,10 @@ Page::Page(Configuration &config)
      , selectedItem_(NULL)
      , textStatusComponent_(NULL)
      , statusMessageTime_(0.0f)
 +    , statusMessageElapsed_(0.0f)
 +    , statusMessageAlphaSaved_(1.0f)
 +    , statusMessageAlphaHeld_(false)
++    , statusMessageClearPending_(false)
      , loadSoundChunk_(NULL)
      , unloadSoundChunk_(NULL)
      , highlightSoundChunk_(NULL)
-@@ -223,8 +226,9 @@ unsigned int Page::getMenuDepth()
+@@ -223,8 +227,9 @@ unsigned int Page::getMenuDepth()
  // otherwise leaves the screen looking exactly as it did before.
  void Page::setStatusMessage(const std::string &message, float seconds)
  {
@@ -24,7 +25,25 @@ index 540869b..598f8d2 100755
  }
  
  
-@@ -824,6 +828,24 @@ bool Page::pushCollection(CollectionInfo *collection)
+@@ -290,7 +295,16 @@ bool Page::isIdle()
+ 
+ bool Page::mustRender()
+ {
+-	bool render = false;
++    // A transient status message animates (its alpha is derived from the
++    // message clocks) and then must be erased again. Text never reports
++    // mustRender() itself, so on an otherwise idle page the only frame that
++    // would be drawn is the keypress itself -- at fade-in alpha of roughly
++    // one frame's dt over the fade time. Ask for frames while a message is
++    // live, and for one more after it expires so the cleared text is
++    // actually cleared from the screen instead of lingering until whatever
++    // forces the next render (the battery tick, seconds away).
++    bool render = textStatusComponent_ &&
++                  (statusMessageTime_ > 0.0f || statusMessageClearPending_);
+ 
+     for(std::vector<Component *>::iterator it = LayerComponents.begin(); it != LayerComponents.end(); ++it)
+     {
+@@ -824,6 +838,24 @@ bool Page::pushCollection(CollectionInfo *collection)
      playlist_ = info.playlist;
      playlistChange();
  
@@ -49,7 +68,7 @@ index 540869b..598f8d2 100755
      if(menuDepth_ < menus_.size())
      {
          menuDepth_++;
-@@ -1107,6 +1129,7 @@ void Page::update(float dt)
+@@ -1107,12 +1139,14 @@ void Page::update(float dt)
  
      if(statusMessageTime_ > 0.0f)
      {
@@ -57,7 +76,14 @@ index 540869b..598f8d2 100755
          statusMessageTime_ -= dt;
  
          if(statusMessageTime_ <= 0.0f)
-@@ -1133,6 +1156,31 @@ void Page::update(float dt)
+         {
+             statusMessageTime_ = 0.0f;
+             statusMessage_.clear();
++            statusMessageClearPending_ = true;
+         }
+     }
+ 
+@@ -1133,6 +1167,31 @@ void Page::update(float dt)
          }
  
          textStatusComponent_->setText(status);
@@ -89,17 +115,30 @@ index 540869b..598f8d2 100755
      }
  
      for(std::vector<Component *>::iterator it = LayerComponents.begin(); it != LayerComponents.end(); ++it)
+@@ -1190,6 +1249,9 @@ void Page::draw()
+         }
+     }
+ 
++    // This draw shows the message gone (or advancing); the request that
++    // produced it is spent.
++    statusMessageClearPending_ = false;
+ }
+ 
+ 
 diff --git a/RetroFE/Source/Graphics/Page.h b/RetroFE/Source/Graphics/Page.h
-index f0abd63..f843549 100755
+index f0abd63..e23c013 100755
 --- a/RetroFE/Source/Graphics/Page.h
 +++ b/RetroFE/Source/Graphics/Page.h
-@@ -157,6 +157,9 @@ private:
+@@ -157,6 +157,12 @@ private:
      Text *textStatusComponent_;
      std::string statusMessage_;
      float statusMessageTime_;
 +    float statusMessageElapsed_;
 +    float statusMessageAlphaSaved_;
 +    bool statusMessageAlphaHeld_;
++    // Set when a message expires, cleared by the draw that shows it gone;
++    // see mustRender().
++    bool statusMessageClearPending_;
      Sound *loadSoundChunk_;
      Sound *unloadSoundChunk_;
      Sound *highlightSoundChunk_;
