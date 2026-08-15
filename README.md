@@ -17,12 +17,11 @@ what FunKey OS *is*, read
 [upstream's README](https://github.com/DrUm78/FunKey-OS/blob/rg_nano/README.md);
 this one covers only what Starling adds and how to install it.
 
-> ### ⚠️ Not yet verified on hardware
+> ### ⚠️ Early days
 >
-> No Starling build has been booted on a console. Until one has, treat this as
-> source code rather than firmware, and use
-> [DrUm78's releases](https://github.com/DrUm78/FunKey-OS/releases) for a
-> console you actually want to play on.
+> Starling 3.0.0 boots and runs on an Anbernic RG Nano — but on exactly one, and
+> not for long. Keep a card with a known-good build on it, and read
+> [Recovery](#recovery) before you flash something rather than after.
 
 ## This build is for the RG Nano and no other console
 
@@ -70,6 +69,9 @@ something.
 | **X** | Unmark the highlighted game |
 | **START** | Switch between favorites and all games, within one system |
 | **FN + L** / **FN + R** | Previous / next playlist |
+
+A favorited game is shown with a `*` in front of its name, so pressing **Y**
+visibly does something and you can see what is marked without opening Favorites.
 
 Each system keeps its own list and the Favorites menu is assembled from those,
 so there is no second list to fall out of sync. Marking a game from inside

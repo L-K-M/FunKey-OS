@@ -1,0 +1,194 @@
+diff --git a/RetroFE/Source/Collection/CollectionInfo.cpp b/RetroFE/Source/Collection/CollectionInfo.cpp
+index 219039d..0a3cbae 100755
+--- a/RetroFE/Source/Collection/CollectionInfo.cpp
++++ b/RetroFE/Source/Collection/CollectionInfo.cpp
+@@ -242,6 +242,37 @@ void CollectionInfo::addSubcollectionPlaylist(CollectionInfo *newinfo, const std
+     }
+ }
+ 
++// Pressing Y had no visible effect: the game stays where it is, and nothing on
++// screen said anything happened. ScrollingList draws Item::title directly, so
++// marking that is what makes the state visible -- in the menu you are actually
++// looking at, in every theme, without any theme needing a component it does not
++// already have.
++//
++// title and not fullTitle: sortPlaylists orders on lowercaseFullTitle, so a
++// marker there would make a game jump position the moment you toggled it.
++// Save() writes Item::name, so the marker cannot reach favorites.txt either.
++//
++// ASCII and not a star glyph: this has to render in whatever font a theme
++// ships, and a missing glyph would look exactly like the bug being fixed.
++const std::string CollectionInfo::favoriteMarker = "* ";
++
++void CollectionInfo::markFavorite(Item *item, bool favorite)
++{
++    if(!item) return;
++
++    bool marked = item->title.compare(0, favoriteMarker.size(), favoriteMarker) == 0;
++
++    if(favorite && !marked)
++    {
++        item->title = favoriteMarker + item->title;
++    }
++    else if(!favorite && marked)
++    {
++        item->title.erase(0, favoriteMarker.size());
++    }
++}
++
++
+ bool CollectionInfo::itemIsLess(Item *lhs, Item *rhs)
+ {
+     if(lhs->leaf && !rhs->leaf) return true;
+diff --git a/RetroFE/Source/Collection/CollectionInfo.h b/RetroFE/Source/Collection/CollectionInfo.h
+index 91adfa6..0cedb9f 100755
+--- a/RetroFE/Source/Collection/CollectionInfo.h
++++ b/RetroFE/Source/Collection/CollectionInfo.h
+@@ -32,6 +32,8 @@ public:
+     void sortPlaylists();
+     void addSubcollection(CollectionInfo *info);
+     void addSubcollectionPlaylist(CollectionInfo *info, const std::string &playlist);
++    static void markFavorite(Item *item, bool favorite);
++    static const std::string favoriteMarker;
+     void extensionList(std::vector<std::string> &extensions);
+     std::string name;
+     std::string lowercaseName();
+diff --git a/RetroFE/Source/Graphics/Page.cpp b/RetroFE/Source/Graphics/Page.cpp
+index a17bfde..61fcab6 100755
+--- a/RetroFE/Source/Graphics/Page.cpp
++++ b/RetroFE/Source/Graphics/Page.cpp
+@@ -1260,6 +1260,11 @@ void Page::removePlaylist()
+         }
+     }
+ 
++    // ScrollingList redraws from Item::title, so this is what makes the
++    // toggle visible at once rather than only after leaving the menu and
++    // coming back to it.
++    if(changed) CollectionInfo::markFavorite(selectedItem_, false);
++
+     if(changed) owner->saveRequest = true;
+ 
+     owner->Save();
+@@ -1301,6 +1306,11 @@ void Page::addPlaylist()
+         }
+     }
+ 
++    // ScrollingList redraws from Item::title, so this is what makes the
++    // toggle visible at once rather than only after leaving the menu and
++    // coming back to it.
++    if(changed) CollectionInfo::markFavorite(selectedItem_, true);
++
+     if(changed) owner->saveRequest = true;
+ 
+     owner->Save();
+diff --git a/RetroFE/Source/RetroFE.cpp b/RetroFE/Source/RetroFE.cpp
+index e3478f6..d03b958 100755
+--- a/RetroFE/Source/RetroFE.cpp
++++ b/RetroFE/Source/RetroFE.cpp
+@@ -1444,6 +1444,32 @@ Page *RetroFE::loadSplashPage( )
+ 
+ 
+ // Load a collection
++// Whether a collection's favorites playlist exists and names at least one game.
++// Read from userPath: playlists live on the writable partition, and the copy
++// under absolutePath is the read-only one shipped in the image.
++//
++// Blank lines are not favorites. A file left behind with nothing in it -- which
++// is what unfavoriting the last game produces -- would otherwise still cost a
++// full scan of that system every time Favorites is opened.
++bool RetroFE::collectionHasFavorites(std::string collectionName)
++{
++    if ( Configuration::userPath.empty( ) ) return false;
++
++    std::string file = Utils::combinePath( Configuration::userPath, "collections", collectionName, "playlists", "favorites.txt" );
++
++    std::ifstream stream( file.c_str( ) );
++    if ( !stream.good( ) ) return false;
++
++    std::string line;
++    while ( std::getline( stream, line ) )
++    {
++        if ( line.find_first_not_of( " \t\r\n" ) != std::string::npos ) return true;
++    }
++
++    return false;
++}
++
++
+ CollectionInfo *RetroFE::getCollection(std::string collectionName)
+ {
+ 
+@@ -1462,6 +1488,11 @@ CollectionInfo *RetroFE::getCollection(std::string collectionName)
+ 
+     std::vector<CollectionInfo *> subcollections;
+ 
++    // Read before the loop rather than after it: it decides whether each
++    // subcollection has to be built at all, which is the expensive part.
++    bool favoritesOnly = false;
++    config_.getProperty( "collections." + collectionName + ".list.favoritesOnly", favoritesOnly );
++
+     std::string path = Utils::combinePath( Configuration::absolutePath, "collections", collectionName );
+     dp = opendir( path.c_str( ) );
+ 
+@@ -1487,6 +1518,19 @@ CollectionInfo *RetroFE::getCollection(std::string collectionName)
+         {
+             if ( file.compare( start, comparator.length( ), comparator ) == 0 )
+             {
++                // A collection that shows only favorites gets nothing from a
++                // system that has none -- but finding that out by building it
++                // means scanning its entire ROM directory and injecting its
++                // metadata first. Reading one small playlist file instead is
++                // the difference between opening Favorites in a moment and
++                // waiting while every game on the card is walked, most of it
++                // to be discarded immediately afterwards.
++                if ( favoritesOnly && !collectionHasFavorites( basename ) )
++                {
++                    Logger::write( Logger::ZONE_INFO, "RetroFE", "Skipping subcollection with no favorites: " + basename );
++                    continue;
++                }
++
+                 Logger::write( Logger::ZONE_INFO, "RetroFE", "Loading subcollection into menu: " + basename );
+ 
+                 CollectionInfo *subcollection = cib.buildCollection( basename, collectionName );
+@@ -1524,14 +1568,26 @@ CollectionInfo *RetroFE::getCollection(std::string collectionName)
+         collection->addSubcollectionPlaylist( *it, "favorites" );
+     }
+ 
++    // Show the marker on games that are already favorites, so the state is
++    // visible on arrival and not only on the ones toggled since. The items are
++    // shared with their own collections, so this marks them everywhere at once.
++    {
++        CollectionInfo::Playlists_T::iterator favorites = collection->playlists.find( "favorites" );
++
++        if ( favorites != collection->playlists.end( ) && favorites->second )
++        {
++            for ( std::vector<Item *>::iterator it = favorites->second->begin( ); it != favorites->second->end( ); it++ )
++            {
++                CollectionInfo::markFavorite( *it, true );
++            }
++        }
++    }
++
+     // Such a collection lists only those favorites, never the full set of games
+     // it merged in order to find them. Without this the "all" playlist would be
+     // every game on the device, and it is what the menu falls back to: an empty
+     // favorites playlist is refused by selectPlaylist(), so a user who has not
+     // favorited anything yet would open Favorites onto their entire library.
+-    bool favoritesOnly = false;
+-    config_.getProperty( "collections." + collectionName + ".list.favoritesOnly", favoritesOnly );
+-
+     if ( favoritesOnly )
+     {
+         CollectionInfo::Playlists_T::iterator favorites = collection->playlists.find( "favorites" );
+diff --git a/RetroFE/Source/RetroFE.h b/RetroFE/Source/RetroFE.h
+index 5525684..6dee43c 100755
+--- a/RetroFE/Source/RetroFE.h
++++ b/RetroFE/Source/RetroFE.h
+@@ -113,6 +113,7 @@ private:
+     RETROFE_STATE   processUserInput( Page *page );
+     void            update( float dt, bool scrollActive );
+     CollectionInfo *getCollection( std::string collectionName );
++    bool collectionHasFavorites( std::string collectionName );
+     CollectionInfo *getMenuCollection( std::string collectionName );
+     void            printState(RETROFE_STATE state);
+ 
