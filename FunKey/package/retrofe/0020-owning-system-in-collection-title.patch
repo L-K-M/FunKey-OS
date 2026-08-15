@@ -1,0 +1,72 @@
+diff --git a/RetroFE/Source/Collection/Item.cpp b/RetroFE/Source/Collection/Item.cpp
+index 47469e3..fe2e0aa 100755
+--- a/RetroFE/Source/Collection/Item.cpp
++++ b/RetroFE/Source/Collection/Item.cpp
+@@ -34,6 +34,23 @@ Item::~Item()
+ {
+ }
+ 
++// The collection a text label should name as this item's origin. On an
++// aggregate page -- Favorites is assembled from .sub files -- a game's
++// collection differs from the page showing it, and the page name ("Favorites")
++// says nothing. Everywhere else the item's collection is the page's own, so
++// the page name is already right. leaf excludes menu entries: their
++// collectionInfo is the menu collection itself today, and if a future menu
++// builder ever points it at the target, a highlighted system's name must
++// still not replace the page's.
++std::string Item::owningCollectionName(const std::string &pageCollection) const
++{
++    if(leaf && collectionInfo && collectionInfo->name != pageCollection)
++    {
++        return collectionInfo->name;
++    }
++    return pageCollection;
++}
++
+ std::string Item::filename()
+ {
+     return Utils::getFileName(filepath);
+diff --git a/RetroFE/Source/Collection/Item.h b/RetroFE/Source/Collection/Item.h
+index 3f7c63c..0505019 100755
+--- a/RetroFE/Source/Collection/Item.h
++++ b/RetroFE/Source/Collection/Item.h
+@@ -31,6 +31,7 @@ public:
+     // one field that can change after load (the favorite marker), and it is
+     // changed through CollectionInfo::markFavorite(), which calls this.
+     void invalidateTitleCache();
++    std::string owningCollectionName(const std::string &pageCollection) const;
+     std::string name;
+     std::string filepath;
+     std::string file;
+diff --git a/RetroFE/Source/Graphics/Component/ReloadableScrollingText.cpp b/RetroFE/Source/Graphics/Component/ReloadableScrollingText.cpp
+index 5b4f555..f7b0708 100755
+--- a/RetroFE/Source/Graphics/Component/ReloadableScrollingText.cpp
++++ b/RetroFE/Source/Graphics/Component/ReloadableScrollingText.cpp
+@@ -336,7 +336,10 @@ void ReloadableScrollingText::reloadTexture( bool previousItem )
+         }
+         else if (type_ == "collectionName")
+         {
+-            text = page.getCollectionName();
++            // On an aggregate page (Favorites) this names the game's own
++            // system instead of the page; everywhere else it is the page's
++            // collection, exactly as before.
++            text = selectedItem->owningCollectionName(page.getCollectionName());
+         }
+         else if (type_ == "collectionSize")
+         {
+diff --git a/RetroFE/Source/Graphics/Component/ReloadableText.cpp b/RetroFE/Source/Graphics/Component/ReloadableText.cpp
+index 5dbd1c0..0e3d6a1 100755
+--- a/RetroFE/Source/Graphics/Component/ReloadableText.cpp
++++ b/RetroFE/Source/Graphics/Component/ReloadableText.cpp
+@@ -200,7 +200,10 @@ void ReloadableText::ReloadTexture( bool previousItem )
+         }
+         else if (type_ == "collectionName")
+         {
+-            text = page.getCollectionName();
++            // On an aggregate page (Favorites) this names the game's own
++            // system instead of the page; everywhere else it is the page's
++            // collection, exactly as before.
++            text = selectedItem->owningCollectionName(page.getCollectionName());
+         }
+         else if (type_ == "collectionSize")
+         {
