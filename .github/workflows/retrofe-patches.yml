@@ -16,6 +16,14 @@ on:
     paths:
       - 'FunKey/package/retrofe/**'
       - '.github/workflows/retrofe-patches.yml'
+  # Same reasoning as build.yml: manual dispatch is useful for reruns after a
+  # retrofe.mk re-pin or an upstream tag change, and workflow_dispatch cannot
+  # take a branch filter anyway.
+  workflow_dispatch:
+
+# The job only reads; give it the least token there is.
+permissions:
+  contents: read
 
 concurrency:
   group: retrofe-patches-${{ github.ref }}
@@ -34,9 +42,12 @@ jobs:
       run: |
         # retrofe.mk carries RETROFE_VERSION = <tag>; the patches are written
         # against exactly that tree, so read it back rather than restating a
-        # tag here for the two to drift apart.
+        # tag here for the two to drift apart. Strip any trailing comment and
+        # whitespace (and a CRLF, should the file ever be edited on Windows)
+        # so a perfectly reasonable inline note cannot become part of a tag
+        # name that git clone then fails to find.
         version="$(sed -n 's/^RETROFE_VERSION[[:space:]]*=[[:space:]]*//p' \
-          FunKey/package/retrofe/retrofe.mk)"
+          FunKey/package/retrofe/retrofe.mk | head -n1 | sed 's/[[:space:]#].*$//')"
         if [ -z "$version" ]; then
           echo "could not read RETROFE_VERSION from retrofe.mk" >&2
           exit 1
