@@ -2,6 +2,19 @@ config BR2_PACKAGE_GMU
 	bool "gmu"
 	default y
 	select BR2_PACKAGE_SDL
+	# *_DEPENDENCIES in gmu.mk does not enable anything -- buildroot builds a
+	# package only if its symbol is =y in the config. Every library gmu links
+	# is selected here so the package is self-sufficient on any config, not
+	# only on funkey_defconfig where all of them happen to be enabled already
+	# (mpg123, tremor/libvorbisidec, flac, libmikmod, wavpack are the decoders
+	# Makefile.funkey builds; sdl_gfx and sdl_image are the SDL frontend).
+	select BR2_PACKAGE_SDL_GFX
+	select BR2_PACKAGE_SDL_IMAGE
+	select BR2_PACKAGE_MPG123
+	select BR2_PACKAGE_TREMOR
+	select BR2_PACKAGE_LIBMIKMOD
+	select BR2_PACKAGE_FLAC
+	select BR2_PACKAGE_WAVPACK
 	help
 	  A multi-format music player
 
