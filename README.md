@@ -117,7 +117,7 @@ small round button; **FN + X** means hold FN and tap X.
 | **A** | Open the highlighted system or launch the highlighted game |
 | **B** | Back |
 | **Y** | Mark the highlighted game as a favorite, or unmark it |
-| **X** | Unmark the highlighted game (Y already toggles both ways) |
+| **X** | Unmark the highlighted game (same as Y on a game that is already marked) |
 | **START** | Switch between favorites and all games, within one system |
 | **L** / **R** | Jump to the previous / next letter of the alphabet |
 | **FN + L** / **FN + R** | Previous / next playlist |
