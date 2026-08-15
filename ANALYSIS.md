@@ -50,11 +50,16 @@ won): fork PRs #33–#40 → same-repo #41–#45; #35 (hint) → #27; #37 (leak)
 
 **Patch numbering.** #25–#32 carry the 0006–0009 patch series (plus per-PR
 0006 singles); the second review's kept patches are numbered 0020–0022 to stay
-clear of them. Textual interplay: #42 rewrites `setStatusMessage()` (also
-edited by #27); #45 rewrites `togglePlaylist()` (also edited by #31) and adds
-a line in `update()` (near #27's fade block); #26 and #45 are adjacent around
-`removePlaylist()`. Whichever lands second in each pair needs a small rebase
-in `Page.cpp` — noted in the PR bodies.
+clear of them. Validated by application to the pinned tag in buildroot's
+filename order: the #25–#32 series (0006-cache-lowercase-titles →
+0009-power-loss-safe-favorites-save) applies cleanly in alphabetical order and
+the result compiles; #42/#43/#45's patches apply cleanly on master today but
+not on top of that series (their context is the pre-series text), so if the
+series lands first they need the small rebase noted in their bodies (#42
+rewrites `setStatusMessage()`, also edited by #27; #45 rewrites
+`togglePlaylist()`, also edited by #31, and touches `update()` near #27's fade
+block; #43 now shares `Item.cpp`/`Item.h` with #32's cache). Both trees are
+preserved locally by the second reviewer; the rebase is mechanical.
 
 If any of these PRs land, delete the row. If one is closed unmerged, move its
 item back into the backlog below and fold in whatever the review said.
