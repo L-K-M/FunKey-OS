@@ -1,0 +1,81 @@
+diff --git a/RetroFE/Source/Collection/CollectionInfo.cpp b/RetroFE/Source/Collection/CollectionInfo.cpp
+index 0a3cbae..7d3a02b 100755
+--- a/RetroFE/Source/Collection/CollectionInfo.cpp
++++ b/RetroFE/Source/Collection/CollectionInfo.cpp
+@@ -52,6 +52,21 @@ CollectionInfo::CollectionInfo(std::string name,
+ 
+ CollectionInfo::~CollectionInfo()
+ {
++    // Free the subcollection shells merged in through .sub files. Their
++    // items are the very same Item objects as this collection's -- owned
++    // here -- so empty each shell's list first: its destructor would
++    // otherwise delete every shared Item a second time. The back-pointers
++    // (Item::collectionInfo) must stay valid until this collection is
++    // torn down, which is why the shells are owned rather than deleted at
++    // merge time: launching and favorite toggling both resolve the owning
++    // system through that pointer.
++    for(std::vector<CollectionInfo *>::iterator it = ownedSubcollections_.begin(); it != ownedSubcollections_.end(); ++it)
++    {
++        (*it)->items.clear();
++        delete *it;
++    }
++    ownedSubcollections_.clear();
++
+     Playlists_T::iterator pit = playlists.begin();
+ 
+     while(pit != playlists.end())
+@@ -222,6 +237,17 @@ void CollectionInfo::addSubcollection(CollectionInfo *newinfo)
+ }
+ 
+ 
++// Take ownership of a subcollection whose items were merged into this one.
++// The shell has to live exactly as long as this collection: merged items
++// point back at it through Item::collectionInfo.
++void CollectionInfo::addOwnedSubcollection(CollectionInfo *info)
++{
++    if(info)
++    {
++        ownedSubcollections_.push_back(info);
++    }
++}
++
+ // Merge a subcollection's playlist into this collection's playlist of the same
+ // name. addSubcollection() has already merged the items themselves and they are
+ // the very same Item objects, so only playlist membership needs copying.
+diff --git a/RetroFE/Source/Collection/CollectionInfo.h b/RetroFE/Source/Collection/CollectionInfo.h
+index 0cedb9f..e0d30ef 100755
+--- a/RetroFE/Source/Collection/CollectionInfo.h
++++ b/RetroFE/Source/Collection/CollectionInfo.h
+@@ -32,6 +32,7 @@ public:
+     void sortPlaylists();
+     void addSubcollection(CollectionInfo *info);
+     void addSubcollectionPlaylist(CollectionInfo *info, const std::string &playlist);
++    void addOwnedSubcollection(CollectionInfo *info);
+     static void markFavorite(Item *item, bool favorite);
+     static const std::string favoriteMarker;
+     void extensionList(std::vector<std::string> &extensions);
+@@ -51,6 +52,7 @@ public:
+ private:
+     std::string metadataPath_;
+     std::string extensions_;
++    std::vector<CollectionInfo *> ownedSubcollections_;
+     static bool itemIsLess(Item *lhs, Item *rhs);
+ 
+ };
+diff --git a/RetroFE/Source/RetroFE.cpp b/RetroFE/Source/RetroFE.cpp
+index d03b958..2fd920d 100755
+--- a/RetroFE/Source/RetroFE.cpp
++++ b/RetroFE/Source/RetroFE.cpp
+@@ -1538,6 +1538,12 @@ CollectionInfo *RetroFE::getCollection(std::string collectionName)
+                 subcollection->subsSplit = subsSplit;
+                 cib.injectMetadata( subcollection );
+                 subcollections.push_back( subcollection );
++
++                // Nothing freed these, and every visit to a .sub collection
++                // (Favorites, every time it opens) builds one per system:
++                // the shell, its item-pointer vector -- several KB per
++                // thousand ROMs -- and its playlist vectors all leaked.
++                collection->addOwnedSubcollection( subcollection );
+             }
+         }
+     }
