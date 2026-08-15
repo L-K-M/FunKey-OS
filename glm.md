@@ -276,14 +276,20 @@ Filled in as items are implemented; each entry links its PR. (Do-not-merge polic
 
 | Item | Branch | PR | State |
 | --- | --- | --- | --- |
-| B4 + M7 (README cd fix + button map) | `docs/readme-build-and-buttons` | [#15](https://github.com/L-K-M/FunKey-OS-Starling/pull/15) | Open, no feedback |
-| B1 + B3 + P1c/P1d + G1 (leak, NULL-safe save, set membership, atomic save) | `retrofe/favorites-robustness` | [#16](https://github.com/L-K-M/FunKey-OS-Starling/pull/16) | Open, no feedback |
-| B2 (unfavorited game leaves the view) | `retrofe/unfavorite-leaves-view` | [#17](https://github.com/L-K-M/FunKey-OS-Starling/pull/17) | Open, no feedback |
-| M2 + V4 (empty-Favorites hint, message fade) | `retrofe/empty-favorites-hint` | [#18](https://github.com/L-K-M/FunKey-OS-Starling/pull/18) | Open, no feedback |
-| B5 (valid layout fallback) | `config/valid-layout-fallback` | [#19](https://github.com/L-K-M/FunKey-OS-Starling/pull/19) | Open, no feedback |
-| G3 apply-check half (fast patch-series CI) | `ci/retrofe-patch-check` | [#20](https://github.com/L-K-M/FunKey-OS-Starling/pull/20) | Open, no feedback |
-| M1 (re-enable gmu via buildroot libs) | `package/re-enable-gmu` | [#21](https://github.com/L-K-M/FunKey-OS-Starling/pull/21) | Open, no feedback — CI may yet fail in a new place, see PR body |
-| B6 option (a) (Y/X only on games) | `retrofe/games-only-favorites` | [#22](https://github.com/L-K-M/FunKey-OS-Starling/pull/22) | Open, no feedback |
-| P2 (cache lowercase sort keys) | `retrofe/cache-lowercase-titles` | [#23](https://github.com/L-K-M/FunKey-OS-Starling/pull/23) | Open, no feedback |
+| B4 + M7 (README cd fix + button map) | `docs/readme-build-and-buttons` | [#24](https://github.com/L-K-M/FunKey-OS-Starling/pull/24) | Open, no feedback |
+| B1 + B3 + P1c/P1d + G1 (leak, NULL-safe save, set membership, atomic save) | `retrofe/favorites-robustness` | [#25](https://github.com/L-K-M/FunKey-OS-Starling/pull/25) | Open, no feedback |
+| B2 (unfavorited game leaves the view) | `retrofe/unfavorite-leaves-view` | [#26](https://github.com/L-K-M/FunKey-OS-Starling/pull/26) | Open, no feedback |
+| M2 + V4 (empty-Favorites hint, message fade) | `retrofe/empty-favorites-hint` | [#27](https://github.com/L-K-M/FunKey-OS-Starling/pull/27) | Open, no feedback |
+| B5 (valid layout fallback) | `config/valid-layout-fallback` | [#28](https://github.com/L-K-M/FunKey-OS-Starling/pull/28) | Open, no feedback |
+| G3 apply-check half (fast patch-series CI) | `ci/retrofe-patch-check` | [#29](https://github.com/L-K-M/FunKey-OS-Starling/pull/29) | Open, no feedback |
+| M1 (re-enable gmu via buildroot libs) | `package/re-enable-gmu` | [#30](https://github.com/L-K-M/FunKey-OS-Starling/pull/30) | Open, no feedback — CI may yet fail in a new place, see PR body |
+| B6 option (a) (Y/X only on games) | `retrofe/games-only-favorites` | [#31](https://github.com/L-K-M/FunKey-OS-Starling/pull/31) | Open, no feedback |
+| P2 (cache lowercase sort keys) | `retrofe/cache-lowercase-titles` | [#32](https://github.com/L-K-M/FunKey-OS-Starling/pull/32) | Open, no feedback |
 
-Notes on the PR flow: the automated GLM 5.2 review ( `.github/workflows/zai-code-review.yml`) only runs for same-repo branches; these PRs come from the `BigBoyDevBox` fork (no write access to `L-K-M/FunKey-OS-Starling`), so the review job reports *skipped* and no automated feedback can arrive — each PR is therefore at “steady state, no useful feedback arrives” by construction, and was watched for human comments instead. Workflows also sit in `action_required` (first-time-contributor approval) until a maintainer approves runs, so CI verdicts — including the gmu build — are pending that approval, not failed.
+Notes on the PR flow: the PRs were first opened from the `BigBoyDevBox` fork
+(no write access was assumed at the time), where the automated GLM 5.2 review
+(`.github/workflows/zai-code-review.yml`) is structurally skipped — it only
+runs for same-repo branches — and were then re-opened from same-repo branches
+(#15–#23 closed in favour of #24–#32) so the review could run. Watch those
+for feedback; if none arrives, each PR is at “steady state, no useful
+feedback arrives” and is left open.

@@ -28,15 +28,15 @@ pending, not failed. If a PR is rejected, the analysis for it lives in
 
 | What | Item | PR |
 | --- | --- | --- |
-| Subcollection leak on every Favorites visit; NULL-safe `Save()`; set-based narrowing/merge; power-loss-safe atomic favorites save | B1, B3, P1c, P1d, G1 | [#16](https://github.com/L-K-M/FunKey-OS-Starling/pull/16) |
-| Unfavorited game leaves the list on screen (narrowed views) | B2 | [#17](https://github.com/L-K-M/FunKey-OS-Starling/pull/17) |
-| Empty-Favorites hint + status-message fade | M2, V4 | [#18](https://github.com/L-K-M/FunKey-OS-Starling/pull/18) |
-| Y/X no longer favorite menu entries (games only) | B6(a) | [#22](https://github.com/L-K-M/FunKey-OS-Starling/pull/22) |
-| Cache lowercase sort titles (sort-time allocations) | P2 | [#23](https://github.com/L-K-M/FunKey-OS-Starling/pull/23) |
-| Valid layout fallback in `settings.conf` | B5 | [#19](https://github.com/L-K-M/FunKey-OS-Starling/pull/19) |
-| README native-build `cd` fix + full button map | B4, M7 | [#15](https://github.com/L-K-M/FunKey-OS-Starling/pull/15) |
-| Fast RetroFE patch-series CI apply-check | G3 (apply half) | [#20](https://github.com/L-K-M/FunKey-OS-Starling/pull/20) |
-| gmu re-enabled against buildroot's FLAC/WavPack | M1 | [#21](https://github.com/L-K-M/FunKey-OS-Starling/pull/21) |
+| Subcollection leak on every Favorites visit; NULL-safe `Save()`; set-based narrowing/merge; power-loss-safe atomic favorites save | B1, B3, P1c, P1d, G1 | [#25](https://github.com/L-K-M/FunKey-OS-Starling/pull/25) |
+| Unfavorited game leaves the list on screen (narrowed views) | B2 | [#26](https://github.com/L-K-M/FunKey-OS-Starling/pull/26) |
+| Empty-Favorites hint + status-message fade | M2, V4 | [#27](https://github.com/L-K-M/FunKey-OS-Starling/pull/27) |
+| Y/X no longer favorite menu entries (games only) | B6(a) | [#31](https://github.com/L-K-M/FunKey-OS-Starling/pull/31) |
+| Cache lowercase sort titles (sort-time allocations) | P2 | [#32](https://github.com/L-K-M/FunKey-OS-Starling/pull/32) |
+| Valid layout fallback in `settings.conf` | B5 | [#28](https://github.com/L-K-M/FunKey-OS-Starling/pull/28) |
+| README native-build `cd` fix + full button map | B4, M7 | [#24](https://github.com/L-K-M/FunKey-OS-Starling/pull/24) |
+| Fast RetroFE patch-series CI apply-check | G3 (apply half) | [#29](https://github.com/L-K-M/FunKey-OS-Starling/pull/29) |
+| gmu re-enabled against buildroot's FLAC/WavPack | M1 | [#30](https://github.com/L-K-M/FunKey-OS-Starling/pull/30) |
 
 If any of these PRs land, delete the row. If one is closed unmerged, move its
 item back into the backlog below and fold in whatever the review said.
