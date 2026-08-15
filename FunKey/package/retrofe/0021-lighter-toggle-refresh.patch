@@ -1,5 +1,5 @@
 diff --git a/RetroFE/Source/Graphics/Component/ScrollingList.cpp b/RetroFE/Source/Graphics/Component/ScrollingList.cpp
-index 151ab3e..116c0fd 100755
+index 151ab3e..722aa16 100755
 --- a/RetroFE/Source/Graphics/Component/ScrollingList.cpp
 +++ b/RetroFE/Source/Graphics/Component/ScrollingList.cpp
 @@ -16,6 +16,7 @@
@@ -10,7 +10,7 @@ index 151ab3e..116c0fd 100755
  #include "../Animate/Tween.h"
  #include "../Animate/TweenSet.h"
  #include "../Animate/Animation.h"
-@@ -120,6 +121,54 @@ void ScrollingList::setItems( std::vector<Item *> *items )
+@@ -120,6 +121,53 @@ void ScrollingList::setItems( std::vector<Item *> *items )
  }
  
  
@@ -21,8 +21,8 @@ index 151ab3e..116c0fd 100755
 +// on its title).
 +//
 +// Slots holding an Image are skipped entirely: the marker lives in
-+// Item::title, which only Text components render, so reloading an image
-+// would decode the same box art to draw the same picture.
++// Item::title, which only Text components render, so reloading an image would
++// decode the same box art to draw the same picture.
 +bool ScrollingList::reloadSelectedItemTexture( )
 +{
 +    if ( !items_ || items_->size( ) == 0 ) return false;
@@ -48,14 +48,13 @@ index 151ab3e..116c0fd 100755
 +        ViewInfo *view = scrollPoints_->at( selectedOffsetIndex_ );
 +        resetTweens( c, tweenPoints_->at( selectedOffsetIndex_ ), view, view, 0 );
 +
-+        if ( old )
-+        {
-+            // Nothing scrolled: keep the new component exactly where the old
-+            // one was. Deleting it is safe for the same reason it is in
-+            // allocateSpritePoints(); its destructor frees its texture.
-+            c->baseViewInfo = old->baseViewInfo;
-+            delete old;
-+        }
++        // Nothing scrolled: keep the new component exactly where the old one
++        // was. components_ is the only owner of these pointers -- allocateTexture
++        // overwrites the slot without freeing what was there -- so deleting it
++        // here is what stops the replacement from leaking, and its destructor
++        // frees the texture.
++        c->baseViewInfo = old->baseViewInfo;
++        delete old;
 +    }
 +
 +    return true;
@@ -78,74 +77,51 @@ index e427aa7..d1b32db 100755
      void destroyItems( );
      void setPoints( std::vector<ViewInfo *> *scrollPoints, std::vector<AnimationEvents *> *tweenPoints );
 diff --git a/RetroFE/Source/Graphics/Page.cpp b/RetroFE/Source/Graphics/Page.cpp
-index 8c94639..438fd7d 100755
+index 44cb96a..1238ad6 100755
 --- a/RetroFE/Source/Graphics/Page.cpp
 +++ b/RetroFE/Source/Graphics/Page.cpp
-@@ -36,6 +36,7 @@ Page::Page(Configuration &config)
-     , selectedItem_(NULL)
-     , textStatusComponent_(NULL)
-     , statusMessageTime_(0.0f)
-+    , statusMessageDirty_(false)
-     , loadSoundChunk_(NULL)
-     , unloadSoundChunk_(NULL)
-     , highlightSoundChunk_(NULL)
-@@ -290,7 +291,10 @@ bool Page::isIdle()
- 
- bool Page::mustRender()
- {
--	bool render = false;
-+    // statusMessageDirty_: a status message appeared or expired. Text
-+    // components never ask for a render themselves, and without one the
-+    // message would linger past its expiry until the next keypress.
-+    bool render = statusMessageDirty_;
- 
-     for(std::vector<Component *>::iterator it = LayerComponents.begin(); it != LayerComponents.end(); ++it)
-     {
-@@ -1113,6 +1117,10 @@ void Page::update(float dt)
-         {
-             statusMessageTime_ = 0.0f;
-             statusMessage_.clear();
-+
-+            // The message just vanished from the component: ask for one more
-+            // render or its last frame lingers until the next keypress.
-+            statusMessageDirty_ = true;
-         }
-     }
- 
-@@ -1173,6 +1181,9 @@ void Page::cleanup()
- 
- void Page::draw()
- {
-+    // The status message changed what is on screen; it has now been drawn.
-+    statusMessageDirty_ = false;
-+
-     for(unsigned int i = 0; i < NUM_LAYERS; ++i)
-     {
-         for(std::vector<Component *>::iterator it = LayerComponents.begin(); it != LayerComponents.end(); ++it)
-@@ -1221,9 +1232,15 @@ bool Page::isFavorite()
+@@ -1283,7 +1283,12 @@ bool Page::isFavorite()
  
  // Add the selected item to the favorites, or remove it if it is already there,
  // so that a single key covers both directions.
 -void Page::togglePlaylist()
-+//
-+// Returns true when the toggle changed which items the visible playlist
-+// holds -- the item dropped out of the favorites playlist being viewed -- and
-+// the caller therefore needs the full playlist round-trip to re-lay the menu
-+// out. False means every visible item is still there and a targeted refresh
-+// of the selected slot is enough.
++// Returns true when the toggle changed which items the visible playlist holds
++// -- the item dropped out of the favorites playlist being viewed -- and the
++// caller therefore needs the full playlist round-trip to re-lay the menu out.
++// False means every visible item is still there and a targeted refresh of the
++// selected slot is enough.
 +bool Page::togglePlaylist()
  {
+     // Only games are favoritable. A menu entry -- a system in the main menu --
+     // is not a game: favoriting it would write a playlist of system names that
+@@ -1294,10 +1299,10 @@ void Page::togglePlaylist()
+     if(selectedItem_ && !selectedItem_->leaf)
+     {
+         setStatusMessage("Only games can be favorited", 1.5f);
+-        return;
++        return false;
+     }
+ 
 -    if(!selectedItem_) return;
 +    if(!selectedItem_) return false;
  
      if(isFavorite())
      {
-@@ -1233,6 +1250,26 @@ void Page::togglePlaylist()
+@@ -1307,6 +1312,35 @@ void Page::togglePlaylist()
      {
          addPlaylist();
      }
 +
++    // The visible playlist stops holding the item in exactly one case:
++    // unfavoriting while the favorites playlist is what is on screen. Every
++    // other toggle leaves each visible slot showing the same game it showed
++    // before, and only the selected one's title changed. Anything unexpected
++    // about the playlist answers true, which is the old behaviour.
++    if(collections_.size() == 0) return true;
++    if(playlist_ == collections_.back().collection->playlists.end()) return true;
++
 +    std::vector<Item *> *visible = playlist_->second;
++    if(!visible) return true;
 +
 +    return std::find(visible->begin(), visible->end(), selectedItem_) == visible->end();
 +}
@@ -168,7 +144,7 @@ index 8c94639..438fd7d 100755
  
  
 diff --git a/RetroFE/Source/Graphics/Page.h b/RetroFE/Source/Graphics/Page.h
-index f0abd63..9562023 100755
+index e23c013..4b51e62 100755
 --- a/RetroFE/Source/Graphics/Page.h
 +++ b/RetroFE/Source/Graphics/Page.h
 @@ -111,8 +111,9 @@ public:
@@ -182,19 +158,11 @@ index f0abd63..9562023 100755
      void reallocateMenuSpritePoints();
      bool isMenuScrolling();
      bool isMenuScrollForward();
-@@ -157,6 +158,7 @@ private:
-     Text *textStatusComponent_;
-     std::string statusMessage_;
-     float statusMessageTime_;
-+    bool statusMessageDirty_;
-     Sound *loadSoundChunk_;
-     Sound *unloadSoundChunk_;
-     Sound *highlightSoundChunk_;
 diff --git a/RetroFE/Source/RetroFE.cpp b/RetroFE/Source/RetroFE.cpp
-index d03b958..4fffc01 100755
+index 88cfd78..6387e0a 100755
 --- a/RetroFE/Source/RetroFE.cpp
 +++ b/RetroFE/Source/RetroFE.cpp
-@@ -1329,8 +1329,22 @@ RetroFE::RETROFE_STATE RetroFE::processUserInput( Page *page )
+@@ -1330,8 +1330,22 @@ RetroFE::RETROFE_STATE RetroFE::processUserInput( Page *page )
              if ( input_.newKeyPressed(UserInput::KeyCodeTogglePlaylist) )
              {
                  attract_.reset( );
