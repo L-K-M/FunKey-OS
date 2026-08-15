@@ -46,6 +46,7 @@ GMU_DEPENDENCIES = sdl sdl_gfx sdl_image mpg123 tremor flac libmikmod wavpack
 define GMU_BUILD_CMDS
 	(cd $(@D); \
 	sed -i -e 's|/opt/FunKey-sdk/bin/arm-funkey-linux-musleabihf-gcc|$(TARGET_CC)|g' funkey.mk; \
+	sed -i -e 's|/opt/FunKey-sdk/bin/arm-funkey-linux-musleabihf-|$(TARGET_CROSS)|g' funkey.mk; \
 	sed -i -e 's|/opt/FunKey-sdk/arm-funkey-linux-musleabihf/sysroot|$(STAGING_DIR)|g' funkey.mk; \
 	sed -i -e 's|-Icross/funkey/include|-I$(STAGING_DIR)/usr/include|g' funkey.mk; \
 	sed -i -e 's|-Lcross/funkey/lib|-L$(STAGING_DIR)/usr/lib|g' funkey.mk; \
