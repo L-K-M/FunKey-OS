@@ -1,9 +1,10 @@
 # FunKey-OS-Starling — Analysis & Backlog (ANALYSIS.md)
 
 This is the working backlog for future work on the fork: every finding from the
-full review pass (preserved in `glm.md`) that is **not yet implemented**, plus a
-status table of what was implemented and where it is waiting. Items are written
-to be picked up directly — context, evidence, concrete fix plan, risk — without
+full review passes (preserved in `glm.md` and `kimi.md` — two independent
+reviews, consolidated here) that is **not yet implemented**, plus a status
+table of what was implemented and where it is waiting. Items are written to be
+picked up directly — context, evidence, concrete fix plan, risk — without
 needing to re-derive the review.
 
 Repository facts an implementer needs: default branch is `master` (there is no
@@ -19,24 +20,41 @@ smoke-checked with the fast apply-check workflow first.
 
 ## Status of implemented work (in flight, do not re-implement)
 
-All of these have open PRs from the `BigBoyDevBox` fork, verified to apply
-cleanly (standalone and stacked with each other where files overlap). The GLM
-review workflow skips fork PRs by design, and CI runs sit in
-`action_required` pending maintainer approval, so treat the CI verdict as
-pending, not failed. If a PR is rejected, the analysis for it lives in
-`glm.md` and the patch itself in the PR branch.
+All of these have open PRs on same-repo branches (so the GLM review workflow
+runs on them), verified to apply cleanly (standalone and stacked where files
+overlap). CI builds sit in `action_required`/`queued` pending maintainer
+approval, so treat the CI verdict as pending, not failed. If a PR is rejected,
+the analysis for it lives in `glm.md`/`kimi.md` and the patch itself in the PR
+branch.
 
 | What | Item | PR |
 | --- | --- | --- |
 | Subcollection leak on every Favorites visit; NULL-safe `Save()`; set-based narrowing/merge; power-loss-safe atomic favorites save | B1, B3, P1c, P1d, G1 | [#25](https://github.com/L-K-M/FunKey-OS-Starling/pull/25) |
 | Unfavorited game leaves the list on screen (narrowed views) | B2 | [#26](https://github.com/L-K-M/FunKey-OS-Starling/pull/26) |
-| Empty-Favorites hint + status-message fade | M2, V4 | [#27](https://github.com/L-K-M/FunKey-OS-Starling/pull/27) |
+| Empty-Favorites hint + status-message fade | M2, V4 | [#27](https://github.com/L-K-M/FunKey-OS-Starling/pull/27) — see review comment: short messages may only ever render at ~8% alpha on idle menus; #45's dirty-flag or #42's OSD route are the fixes |
 | Y/X no longer favorite menu entries (games only) | B6(a) | [#31](https://github.com/L-K-M/FunKey-OS-Starling/pull/31) |
 | Cache lowercase sort titles (sort-time allocations) | P2 | [#32](https://github.com/L-K-M/FunKey-OS-Starling/pull/32) |
 | Valid layout fallback in `settings.conf` | B5 | [#28](https://github.com/L-K-M/FunKey-OS-Starling/pull/28) |
 | README native-build `cd` fix + full button map | B4, M7 | [#24](https://github.com/L-K-M/FunKey-OS-Starling/pull/24) |
 | Fast RetroFE patch-series CI apply-check | G3 (apply half) | [#29](https://github.com/L-K-M/FunKey-OS-Starling/pull/29) |
 | gmu re-enabled against buildroot's FLAC/WavPack | M1 | [#30](https://github.com/L-K-M/FunKey-OS-Starling/pull/30) |
+| Drop ~4.4 MB of unreferenced files (splash_BAK/device_BAK/tmp/ico) + `rememberMenu` duplicate + `menu.txt` newline | K1 | [#41](https://github.com/L-K-M/FunKey-OS-Starling/pull/41) |
+| Favorite-toggle feedback via the kernel notification overlay (fbtft OSD) — kills the statusText/title overlap on device | K2 (V1 done properly) | [#42](https://github.com/L-K-M/FunKey-OS-Starling/pull/42) |
+| Per-item owning system in the Favorites status bar ("NES" instead of "Favorites") | K3 | [#43](https://github.com/L-K-M/FunKey-OS-Starling/pull/43) |
+| `share`: N-file `.fwu` glob fix + removal of the never-run `.swu` loop | K4 | [#44](https://github.com/L-K-M/FunKey-OS-Starling/pull/44) |
+| Lighter toggle refresh: rebuild one slot instead of the whole wheel + statusMessageDirty_ render fix | K5 | [#45](https://github.com/L-K-M/FunKey-OS-Starling/pull/45) |
+
+Closed as superseded (second review produced duplicates; the better version
+won): fork PRs #33–#40 → same-repo #41–#45; #35 (hint) → #27; #37 (leak) →
+#25; #38 (atomic save) → #25.
+
+**Patch numbering.** #25–#32 carry the 0006–0009 patch series (plus per-PR
+0006 singles); the second review's kept patches are numbered 0020–0022 to stay
+clear of them. Textual interplay: #42 rewrites `setStatusMessage()` (also
+edited by #27); #45 rewrites `togglePlaylist()` (also edited by #31) and adds
+a line in `update()` (near #27's fade block); #26 and #45 are adjacent around
+`removePlaylist()`. Whichever lands second in each pair needs a small rebase
+in `Page.cpp` — noted in the PR bodies.
 
 If any of these PRs land, delete the row. If one is closed unmerged, move its
 item back into the backlog below and fold in whatever the review said.
@@ -70,7 +88,7 @@ which only a directory scan produces.
 3. `Item::collectionInfo` must point at a live `CollectionInfo` for the system
    (launch resolves the launcher through it; so does the favorites write-back).
    Keep lightweight per-system shells alive for the aggregate's lifetime — the
-   ownership machinery merged in #16 (`ownSubcollection()`) is exactly the
+   ownership machinery in #25 (`ownSubcollection()`) is exactly the
    right place to hang this.
 4. Deleting a favorite invalidates one line and one mtime; a card edited on a
    computer simply falls back to the slow path once.
@@ -112,7 +130,7 @@ what they played yesterday.
 
 1. In `Launcher::run()` (or wherever the launch is reaped), prepend the
    launched item's name to its collection's `playlists/recent.txt`, cap at
-   ~20, write back (reuse the atomic save path from #16).
+   ~20, write back (reuse the atomic save path from #25).
 2. Generalize the `favoritesOnly` narrowing into `playlistsOnly = <name>` so
    any playlist can drive an aggregate view (today the narrowing and the skip
    check are favorites-hardcoded in `getCollection()` — `collectionHasFavorites`
@@ -122,11 +140,11 @@ what they played yesterday.
    `tools/gen-favorites-artwork.py` (wordmark "RECENT", clock-rewind glyph).
 
 **Risk.** Medium — mostly the generalization in step 2, which touches the
-narrowing code #16/#17 also touch. Land those first.
+narrowing code #25/#26 also touch. Land those first.
 
-### 4. gmu follow-up, if #21 fails in CI (was M1, remainder)
+### 4. gmu follow-up, if #30 fails in CI (was M1, remainder)
 
-#21 re-enables gmu using buildroot's own FLAC/WavPack. The honest expectation
+#30 re-enables gmu using buildroot's own FLAC/WavPack. The honest expectation
 (written in its body) is that the build may die somewhere *new* — the previous
 failures never got past the vendored libraries. If CI rejects it: the failure
 will be specific (a frontend, the OPK step, a runtime path); fix that spot the
@@ -158,7 +176,7 @@ reloadable-text type; keep that for later.)
 (`firstCollection = Favorites`) boots into the mixed list of everything the
 user actually plays. Zero code — README note now, a GMenu2X Settings toggle if
 one is ever wanted. Test on-device that `getCollection("Favorites")` at boot
-behaves (empty-favorites case is handled by #18's hint).
+behaves (empty-favorites case is handled by #27's hint).
 
 ### 8. Clocks for the themes that lack one (was M8)
 
@@ -185,7 +203,7 @@ bug. Keep `print-artifacts` as the model: one source, everything else derived.
 
 ### 11. Host-compile half of the patch CI (was G3, compile half)
 
-#20 covers "does the series apply". The second half is "does it compile":
+#29 covers "does the series apply". The second half is "does it compile":
 clone RetroFE at the pinned tag on the runner, apply the series, build
 `RetroFE/Source` with SDL1.2 dev packages (`libsdl1.2-dev libsdl-image1.2-dev
 libsdl-mixer1.2-dev libsdl-ttf2.0-dev libsdl-sound1.2-dev` + glib/sqlite/zlib +
@@ -228,7 +246,8 @@ ASCII. Keep `favoriteMarker` a single constant either way.
 - `statusText` sits at y=224 in all 13 themes; in the FunKey family the bottom
   game row spans ~226–242 at x≥70 — a few pixels of transient overlap. Nudge
   to y≈228 with the layout's smaller font, or add a semi-transparent pill
-  behind the text.
+  behind the text. (In the four wheel themes it is a dead-on collision, not a
+  few pixels — see K6. If #42 lands, all of this matters only off-device.)
 - The message inherits the layout's default font/size/colour. Giving it its
   own smaller size, letter-spaced caps, and the artwork generator's gold
   (#FFD65C/#F0A312) ties on-screen feedback to the Favorites star iconography
@@ -299,11 +318,71 @@ partition mounted before login — check `S10share` ordering first.
 
 ### 24. `sortPlaylists()` NULL-"all" pattern (was B3's sibling)
 `sortPlaylists()` still fetches `playlists["all"]` with `operator[]` — the
-same insert-NULL pattern #16 removed from `Save()`. Every collection that
+same insert-NULL pattern #25 removed from `Save()`. Every collection that
 reaches it has "all" (set by `buildCollection()`), so it is latent; fix the
 same way if touched for other reasons.
 
 ---
+
+## Additional findings from the second review (`kimi.md`)
+
+A second, independent full review (same scope, same pinned tag) was done in
+parallel; its full text is `kimi.md`. Findings that duplicate items above were
+consolidated into them; the PRs it produced are in the status table (K1–K5).
+What remains unique and unimplemented:
+
+### K6. V1 is understated for the wheel themes (evidence, not a task)
+
+The statusText/title overlap is not "a few pixels": in the four wheel themes
+(the shipped default included) the title strip is centered at y≈223 and the
+statusText at y=224 — same size, same colour, same spot, and Text components
+overdraw rather than clear. It is a dead-on collision for 1.5 s. If #42 lands
+this is moot on device; on desktop it remains. See `kimi.md` B1 for the
+per-theme measurements.
+
+### K7. `foreground.png` on layer 20 is silently never drawn (wheel themes)
+
+`Page::addComponent()` rejects `Layer >= NUM_LAYERS` (20) with a log line, so
+the foreground/bezel overlay declared at `layer="20"` in the wheel themes'
+`layout.xml` does nothing. Either the bezel was intentionally disabled or it
+is a quiet upstream bug. A maintainer with hardware should decide: move it to
+layer 19 (it would then draw *over* the statusText at 19 — pick 18/19
+deliberately) or delete the asset.
+
+### K8. Auto-cover-art from gameplay snapshots (merges idea 21/N5)
+
+Broader than N5's "favorites get a screenshot on exit": `Launcher::run()`
+already executes `keymap rom '<path>'` before every launch, so recording the
+currently running ROM is one line in the `keymap` script; then `snapshot`
+(FN+UP, already wired to `fbgrab`) can *additionally* save
+`<romdir>/<name>.png` when none exists — and `media.artwork_front` already
+points at the ROM directory, so **playing a game once gives it cover art
+forever**, filling the wheel by use. Needs the marker cleared on launch
+return (the launcher scripts' post-`wait` tail) so menu screenshots taken
+after exit aren't misattributed. Shell-only.
+
+### K9. Per-system accent colour in the Favorites title strip
+
+Once #43 exposes the owning system per item, tinting the bottom title strip
+per system (a static system→colour map; the artwork generator already samples
+per-theme palettes) makes the aggregate list scannable at a glance. Config /
+art-pipeline only once the component type exists; not before.
+
+### K10. `list.favoritesOrder = recent|alpha` knob
+
+Favorites are forced alphabetical (`sortPlaylists()` follows "all"). Skipping
+that sort for the aggregate's favorites playlist leaves them in
+`favorites.txt` order — i.e. chronological, "recently starred first". Three
+lines plus a config read; subsumes the cheap half of idea 17 (Star Log)
+without changing the file format. Taste call: alpha is arguably better on a
+240×240 screen; offer both.
+
+### K11. Favorites count in the toggle acknowledgement
+
+Same as item 6 (was M3, cheap half) — "Added to favorites — 12 total".
+Recorded there; noted here only because the second review reached the same
+spot independently. If #42 landed, the string flows through the OSD wrap
+(30-col lines) — keep the sentence short.
 
 ## For future reviewers (context that keeps being useful)
 
@@ -317,7 +396,41 @@ same way if touched for other reasons.
   favoritesOnly narrowing *does* take effect on entry; don't "fix" the
   one-frame discrepancy.
 - `Page::cleanup()` runs on every menu-back (`RETROFE_BACK_MENU_ENTER`), which
-  is what makes ownership-based freeing (#16) per-visit rather than per-exit.
+  is what makes ownership-based freeing (#25) per-visit rather than per-exit.
+- The `newItemSelected` flag on `ScrollingList` is write-only-sticky: set by
+  every `Page::onNewItemSelected()`, never cleared (the Reloadable* classes
+  clear only their own). So `allocateSpritePoints()`'s `if (old &&
+  !newItemSelected)` is effectively never taken after first use, and every
+  playlist switch / reallocate leaks the old slot components (their surfaces
+  are already freed by `deallocateSpritePoints()`, so it's ~1 KB per event,
+  not the bitmaps). #45 bypasses the path for toggles; S/O/V still hit it.
+  Fix by always `delete old` and keeping only the baseViewInfo copy
+  conditional — visuals unchanged.
+- The kernel notification overlay (fbtft `notification` sysfs node) spec,
+  verified against `DrUm78/linux v1.0-rg-nano`: 30 columns of 8×8 text on a
+  black bar at the top of the screen; `^` or `\n` breaks lines; spaces center
+  manually (volume OSD convention); writing `clear` retracts; composited
+  continuously in `spi_async_mode`, so it appears even while the frontend is
+  idle and over games; `notif set N` backgrounds a self-clearing process and
+  pkill-coordinates with other notices. This is the right channel for *any*
+  transient frontend feedback on device — #42 uses it for favorite toggles;
+  prefer it over adding fixed-position text to 13 themes. (Direct C++ writes
+  would bypass the pkill coordination — worst case a toast cleared early —
+  which is why #42 shells out.)
+- `importCurrentLayout()`'s missing-directory branch logs "Resetting Classic
+  theme by default" but doesn't reset anything (falls through with the
+  missing name), and `loadSplashPage()` calls `page->start()` on a possibly
+  NULL page. With #28 the shipped config never reaches this, but a user
+  deleting the active theme's directory still can. Upstream report material.
+- During `RETROFE_HIGHLIGHT_ENTER`, only HIGHLIGHT/MENUJUMP results from
+  `processUserInput()` are honored — a Y pressed inside a highlight animation
+  (~0.25 s) is swallowed (no toggle, no feedback). Minor; queueing input
+  across states is upstream's call.
+- `controls.conf` `pageUp`/`pageDown` have no physical source on the RG Nano
+  (no key emits PAGEUP/PAGEDOWN); harmless dead config. The Konami code
+  (u u d d l r l r b a) *is* enterable on device and launches `bibi`.
+- RetroRoomCovers, Daijismol, Artbook-sml and DarkUI ship byte-identical
+  `layout.xml` files — edit all four or none.
 - `controls.conf` is read only from the read-only rootfs
   (`absolutePath/controls.conf`); user copies on the share partition are
   ignored — there is no stale-user-config failure mode for new keys.
