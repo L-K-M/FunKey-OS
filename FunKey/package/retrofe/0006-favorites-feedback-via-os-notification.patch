@@ -1,0 +1,111 @@
+diff --git a/RetroFE/Source/Graphics/Page.cpp b/RetroFE/Source/Graphics/Page.cpp
+index 8c94639..292fbb1 100755
+--- a/RetroFE/Source/Graphics/Page.cpp
++++ b/RetroFE/Source/Graphics/Page.cpp
+@@ -26,6 +26,9 @@
+ #include "PageBuilder.h"
+ #include <algorithm>
+ #include <sstream>
++#include <cstdlib>
++#include <cctype>
++#include <sys/stat.h>
+ 
+ 
+ Page::Page(Configuration &config)
+@@ -218,11 +221,93 @@ unsigned int Page::getMenuDepth()
+ }
+ 
+ 
+-// A line of text shown for a moment and then cleared, by whichever component
+-// the theme declares as its statusText. Used to acknowledge an action that
+-// otherwise leaves the screen looking exactly as it did before.
++namespace
++{
++    // The kernel notification overlay every other OS notice on the device
++    // uses -- volume, brightness, screenshot, low battery, shutdown. The
++    // fbtft display driver composites it over whatever is on the
++    // framebuffer: above any theme, and above RetroFE itself, which is how
++    // the volume OSD already appears while browsing. No layout support
++    // needed, and no per-theme placement to get wrong.
++    const char *NOTIFICATION_NODE = "/sys/class/graphics/fb0/notification";
++
++    // Probed once: the node either exists for the whole run or never does
++    // (desktop builds, where the fallback below is wanted).
++    bool notificationAvailable()
++    {
++        static int available = -1;
++        if(available < 0)
++        {
++            struct stat info;
++            available = (stat(NOTIFICATION_NODE, &info) == 0) ? 1 : 0;
++        }
++        return available == 1;
++    }
++}
++
++
++// A line of text shown for a moment and then cleared, used to acknowledge an
++// action that otherwise leaves the screen looking exactly as it did before.
++//
++// On device this goes through the "notif" shell helper rather than a direct
++// sysfs write: "notif set" backgrounds a process that retracts the message
++// when the time is up, and RetroFE may be busy launching a game -- or gone
++// entirely -- when that moment comes. It also replaces rather than stacks
++// with any other notice in flight, and later notices replace it.
++//
++// Everywhere else the theme's statusText component shows it. That is only a
++// fallback: the shipped themes draw their statusText where the game title
++// already sits, and Text components overdraw rather than replace, so on
++// device both strings would be on top of each other.
+ void Page::setStatusMessage(const std::string &message, float seconds)
+ {
++    if(notificationAvailable())
++    {
++        // The overlay draws 8x8 text, 30 columns to the 240px screen, and
++        // breaks lines on '\n' (its shell users write '^'). Wrap at word
++        // boundaries and pad each line to centre it, matching the volume
++        // OSD. Messages are fixed strings from this codebase, never user
++        // data, so single-quoting cannot inject anything into the shell.
++        std::string upper = message;
++        for(std::string::iterator it = upper.begin(); it != upper.end(); ++it)
++        {
++            *it = toupper(*it);
++        }
++
++        std::string osd;
++        std::string line;
++        std::string word;
++        std::stringstream words(upper);
++        while(words >> word)
++        {
++            if(!line.empty() && line.length() + 1 + word.length() > 30)
++            {
++                osd += std::string((30 - line.length()) / 2, ' ') + line + "\n";
++                line.clear();
++            }
++            if(!line.empty()) line += ' ';
++            line += word;
++        }
++        if(!line.empty())
++        {
++            osd += std::string((30 - line.length()) / 2, ' ') + line;
++        }
++
++        int secs = static_cast<int>(seconds + 0.5f);
++        if(secs < 1) secs = 1;
++
++        std::stringstream cmd;
++        cmd << "notif set " << secs << " '" << osd << "'";
++        if(system(cmd.str().c_str()) != 0)
++        {
++            Logger::write(Logger::ZONE_WARNING, "Page", "Could not show notification: " + message);
++        }
++
++        statusMessage_.clear();
++        statusMessageTime_ = 0.0f;
++        return;
++    }
++
+     statusMessage_     = message;
+     statusMessageTime_ = seconds;
+ }
