@@ -1,0 +1,105 @@
+diff --git a/RetroFE/Source/Graphics/Page.cpp b/RetroFE/Source/Graphics/Page.cpp
+index 540869b..598f8d2 100755
+--- a/RetroFE/Source/Graphics/Page.cpp
++++ b/RetroFE/Source/Graphics/Page.cpp
+@@ -36,6 +36,9 @@ Page::Page(Configuration &config)
+     , selectedItem_(NULL)
+     , textStatusComponent_(NULL)
+     , statusMessageTime_(0.0f)
++    , statusMessageElapsed_(0.0f)
++    , statusMessageAlphaSaved_(1.0f)
++    , statusMessageAlphaHeld_(false)
+     , loadSoundChunk_(NULL)
+     , unloadSoundChunk_(NULL)
+     , highlightSoundChunk_(NULL)
+@@ -223,8 +226,9 @@ unsigned int Page::getMenuDepth()
+ // otherwise leaves the screen looking exactly as it did before.
+ void Page::setStatusMessage(const std::string &message, float seconds)
+ {
+-    statusMessage_     = message;
+-    statusMessageTime_ = seconds;
++    statusMessage_        = message;
++    statusMessageTime_    = seconds;
++    statusMessageElapsed_ = 0.0f;
+ }
+ 
+ 
+@@ -824,6 +828,24 @@ bool Page::pushCollection(CollectionInfo *collection)
+     playlist_ = info.playlist;
+     playlistChange();
+ 
++    // A favorites-narrowed menu that has nothing to show is not broken, it is
++    // empty -- but nothing on screen says so, and the first menu entry a new
++    // owner lands on is exactly this one. Say how it fills, then let the
++    // message clear itself; a theme without a statusText simply shows nothing,
++    // exactly as before.
++    bool favoritesOnly = false;
++    config_.getProperty("collections." + collection->name + ".list.favoritesOnly", favoritesOnly);
++
++    if(favoritesOnly)
++    {
++        CollectionInfo::Playlists_T::iterator all = collection->playlists.find("all");
++
++        if(all != collection->playlists.end() && all->second && all->second->empty())
++        {
++            setStatusMessage("No favorites yet - press Y on a game to add one", 4.0f);
++        }
++    }
++
+     if(menuDepth_ < menus_.size())
+     {
+         menuDepth_++;
+@@ -1107,6 +1129,7 @@ void Page::update(float dt)
+ 
+     if(statusMessageTime_ > 0.0f)
+     {
++        statusMessageElapsed_ += dt;
+         statusMessageTime_ -= dt;
+ 
+         if(statusMessageTime_ <= 0.0f)
+@@ -1133,6 +1156,31 @@ void Page::update(float dt)
+         }
+ 
+         textStatusComponent_->setText(status);
++
++        // The message fades in and out over the first and last moments of its
++        // life instead of popping. No tween machinery: the alpha is derived
++        // from the clocks above, and the theme's own alpha is saved on the way
++        // in and restored on the way out, so a theme that animates statusText
++        // alpha itself keeps the last value it set once the message is gone.
++        if(statusMessageTime_ > 0.0f)
++        {
++            if(!statusMessageAlphaHeld_)
++            {
++                statusMessageAlphaSaved_ = textStatusComponent_->baseViewInfo.Alpha;
++                statusMessageAlphaHeld_  = true;
++            }
++
++            const float fade = 0.2f;
++            float alpha = std::min(statusMessageElapsed_ / fade, 1.0f);
++            alpha = std::min(alpha, statusMessageTime_ / fade);
++
++            textStatusComponent_->baseViewInfo.Alpha = statusMessageAlphaSaved_ * std::max(alpha, 0.0f);
++        }
++        else if(statusMessageAlphaHeld_)
++        {
++            textStatusComponent_->baseViewInfo.Alpha = statusMessageAlphaSaved_;
++            statusMessageAlphaHeld_ = false;
++        }
+     }
+ 
+     for(std::vector<Component *>::iterator it = LayerComponents.begin(); it != LayerComponents.end(); ++it)
+diff --git a/RetroFE/Source/Graphics/Page.h b/RetroFE/Source/Graphics/Page.h
+index f0abd63..f843549 100755
+--- a/RetroFE/Source/Graphics/Page.h
++++ b/RetroFE/Source/Graphics/Page.h
+@@ -157,6 +157,9 @@ private:
+     Text *textStatusComponent_;
+     std::string statusMessage_;
+     float statusMessageTime_;
++    float statusMessageElapsed_;
++    float statusMessageAlphaSaved_;
++    bool statusMessageAlphaHeld_;
+     Sound *loadSoundChunk_;
+     Sound *unloadSoundChunk_;
+     Sound *highlightSoundChunk_;
