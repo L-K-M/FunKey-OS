@@ -1,5 +1,5 @@
 diff --git a/RetroFE/Source/Graphics/Page.cpp b/RetroFE/Source/Graphics/Page.cpp
-index 8c94639..9061551 100755
+index 1238ad6..413689f 100755
 --- a/RetroFE/Source/Graphics/Page.cpp
 +++ b/RetroFE/Source/Graphics/Page.cpp
 @@ -26,6 +26,9 @@
@@ -12,7 +12,7 @@ index 8c94639..9061551 100755
  
  
  Page::Page(Configuration &config)
-@@ -218,11 +221,127 @@ unsigned int Page::getMenuDepth()
+@@ -222,11 +225,141 @@ unsigned int Page::getMenuDepth()
  }
  
  
@@ -23,11 +23,14 @@ index 8c94639..9061551 100755
 +{
 +    // The kernel notification overlay every other OS notice on the device
 +    // uses -- volume, brightness, screenshot, low battery, shutdown. The
-+    // fbtft display driver composites it over whatever is on the
-+    // framebuffer: above any theme, and above RetroFE itself, which is how
-+    // the volume OSD already appears while browsing. No layout support
-+    // needed, and no per-theme placement to get wrong.
++    // fbtft display driver composites it over whatever is on the framebuffer:
++    // above any theme, and above RetroFE itself, which is how the volume OSD
++    // already appears while browsing. No layout support needed, and no
++    // per-theme placement to get wrong.
 +    const char *NOTIFICATION_NODE = "/sys/class/graphics/fb0/notification";
++
++    // The overlay draws 8x8 glyphs across a 240px screen.
++    const std::string::size_type OSD_COLUMNS = 30;
 +
 +    // Probed once: the node either exists for the whole run or never does
 +    // (desktop builds, where the fallback below is wanted).
@@ -36,13 +39,22 @@ index 8c94639..9061551 100755
 +        static int available = -1;
 +        if(available < 0)
 +        {
-+            // Probe everything the display path depends on: the node, and
-+            // the helper being resolvable on PATH -- one shot, cached.
++            // Probe everything the display path depends on: the node, and the
++            // helper being resolvable on PATH -- one shot, cached.
 +            struct stat info;
 +            available = (stat(NOTIFICATION_NODE, &info) == 0 &&
 +                         system("command -v notif >/dev/null 2>&1") == 0) ? 1 : 0;
 +        }
 +        return available == 1;
++    }
++
++    // Centre a line in the overlay's 30 columns. Clamped, because
++    // (30 - length) on an over-long line would underflow to a huge count and
++    // std::string would throw.
++    std::string centred(const std::string &line)
++    {
++        std::string::size_type pad = line.length() < OSD_COLUMNS ? (OSD_COLUMNS - line.length()) / 2 : 0;
++        return std::string(pad, ' ') + line;
 +    }
 +}
 +
@@ -53,93 +65,95 @@ index 8c94639..9061551 100755
 +// On device this goes through the "notif" shell helper rather than a direct
 +// sysfs write: "notif set" backgrounds a process that retracts the message
 +// when the time is up, and RetroFE may be busy launching a game -- or gone
-+// entirely -- when that moment comes. It also replaces rather than stacks
-+// with any other notice in flight, and later notices replace it.
++// entirely -- when that moment comes. It also replaces rather than stacks with
++// any other notice in flight, and later notices replace it.
 +//
 +// Everywhere else the theme's statusText component shows it. That is only a
 +// fallback: the shipped themes draw their statusText where the game title
-+// already sits, and Text components overdraw rather than replace, so on
-+// device both strings would be on top of each other.
++// already sits (titles centre on y=223 or y=220, statusText on y=224) and Text
++// components overdraw rather than replace, so both strings would be on top of
++// each other.
  void Page::setStatusMessage(const std::string &message, float seconds)
  {
 +    // seconds <= 0 keeps its old meaning -- show with no timer -- so only
 +    // positive durations go to the self-clearing overlay.
 +    if(notificationAvailable() && seconds > 0.0f)
 +    {
-+        // The overlay draws 8x8 text, 30 columns to the 240px screen, and
-+        // breaks lines on '\n' (its shell users write '^'). Wrap at word
-+        // boundaries and pad each line to centre it, matching the volume
-+        // OSD.
++        // '^' is the overlay's line break, not a printable character:
++        // system_stats writes "BAT:${battery}^IP:${ip_addr}" and first_boot
++        // "6/6 COPY FILES TO ^    USB PARTITION". It therefore cannot appear
++        // in message text. The cast keeps toupper defined for bytes >= 0x80
++        // on signed-char platforms.
 +        std::string upper = message;
 +        for(std::string::iterator it = upper.begin(); it != upper.end(); ++it)
 +        {
-+            // The overlay treats '^' as a line break, so it cannot appear
-+            // in a message. Apostrophes are escaped when the command is
-+            // built below -- after the wrap, so the escape bytes cannot
-+            // distort the 30-column arithmetic. The cast keeps toupper
-+            // defined for bytes >= 0x80 on signed-char platforms.
 +            *it = (*it == '^') ? ' ' : std::toupper(static_cast<unsigned char>(*it));
 +        }
 +
++        // Wrap at word boundaries and centre each line, matching the volume
++        // OSD. Lines are joined with '^' after the wrap, so the break bytes
++        // cannot distort the column arithmetic.
 +        std::string osd;
 +        std::string line;
 +        std::string word;
 +        std::stringstream words(upper);
 +        while(words >> word)
 +        {
-+            // A word longer than a whole line would be clipped by the
-+            // 30-column overlay: split it across lines first, full width.
-+            while(word.length() > 30)
++            // A word wider than a whole line would be clipped: split it
++            // across lines first, full width.
++            while(word.length() > OSD_COLUMNS)
 +            {
 +                if(!line.empty())
 +                {
-+                    osd += std::string(line.length() < 30 ? (30 - line.length()) / 2 : 0, ' ') + line + "\n";
++                    osd += centred(line) + "^";
 +                    line.clear();
 +                }
-+                osd += word.substr(0, 30) + "\n";
-+                word.erase(0, 30);
++                osd += word.substr(0, OSD_COLUMNS) + "^";
++                word.erase(0, OSD_COLUMNS);
 +            }
-+            if(!line.empty() && line.length() + 1 + word.length() > 30)
++            if(!line.empty() && line.length() + 1 + word.length() > OSD_COLUMNS)
 +            {
-+                osd += std::string(line.length() < 30 ? (30 - line.length()) / 2 : 0, ' ') + line + "\n";
++                osd += centred(line) + "^";
 +                line.clear();
 +            }
 +            if(!line.empty()) line += ' ';
 +            line += word;
 +        }
-+        if(!line.empty())
-+        {
-+            // Clamped, because (30 - length) would underflow to a huge
-+            // count and std::string would throw.
-+            osd += std::string(line.length() < 30 ? (30 - line.length()) / 2 : 0, ' ') + line;
-+        }
++        if(!line.empty()) osd += centred(line);
 +
 +        int secs = static_cast<int>(seconds + 0.5f);
 +        if(secs < 1) secs = 1;
 +
 +        std::stringstream cmd;
 +        cmd << "notif set " << secs << " '";
-+        // ' is the only byte a single-quoted shell word cannot hold; the
-+        // POSIX idiom closes, escapes, and reopens the quote around it.
 +        for(std::string::size_type i = 0; i < osd.size(); ++i)
 +        {
-+            if(osd[i] == '\'') cmd << "'\\''";
-+            else               cmd << osd[i];
++            // The helper ends in printf "${message}", so the text is a format
++            // string: a literal % has to be doubled. And ' is the one byte a
++            // single-quoted shell word cannot hold; the POSIX idiom closes,
++            // escapes, and reopens the quote around it.
++            if(osd[i] == '%')       cmd << "%%";
++            else if(osd[i] == '\'') cmd << "'\\''";
++            else                    cmd << osd[i];
 +        }
 +        cmd << "'";
++
 +        if(system(cmd.str().c_str()) == 0)
 +        {
++            // Nothing for the theme component to draw, and ask for one render
++            // so that anything it is still showing is erased.
 +            statusMessage_.clear();
 +            statusMessageTime_ = 0.0f;
++            statusMessageClearPending_ = true;
 +            return;
 +        }
 +
-+        // The helper failed even though the node exists (PATH, perms):
-+        // fall through to the theme's statusText rather than leave the
-+        // keypress unanswered.
++        // The helper failed even though the node exists (PATH, perms): fall
++        // through to the theme's statusText rather than leave the keypress
++        // unanswered.
 +        Logger::write(Logger::ZONE_WARNING, "Page", "Could not show notification: " + message);
 +    }
 +
-     statusMessage_     = message;
-     statusMessageTime_ = seconds;
- }
+     statusMessage_        = message;
+     statusMessageTime_    = seconds;
+     statusMessageElapsed_ = 0.0f;
