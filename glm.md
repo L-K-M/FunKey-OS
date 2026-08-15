@@ -276,20 +276,30 @@ Filled in as items are implemented; each entry links its PR. (Do-not-merge polic
 
 | Item | Branch | PR | State |
 | --- | --- | --- | --- |
-| B4 + M7 (README cd fix + button map) | `docs/readme-build-and-buttons` | [#24](https://github.com/L-K-M/FunKey-OS-Starling/pull/24) | Open, no feedback |
-| B1 + B3 + P1c/P1d + G1 (leak, NULL-safe save, set membership, atomic save) | `retrofe/favorites-robustness` | [#25](https://github.com/L-K-M/FunKey-OS-Starling/pull/25) | Open, no feedback |
-| B2 (unfavorited game leaves the view) | `retrofe/unfavorite-leaves-view` | [#26](https://github.com/L-K-M/FunKey-OS-Starling/pull/26) | Open, no feedback |
-| M2 + V4 (empty-Favorites hint, message fade) | `retrofe/empty-favorites-hint` | [#27](https://github.com/L-K-M/FunKey-OS-Starling/pull/27) | Open, no feedback |
-| B5 (valid layout fallback) | `config/valid-layout-fallback` | [#28](https://github.com/L-K-M/FunKey-OS-Starling/pull/28) | Open, no feedback |
-| G3 apply-check half (fast patch-series CI) | `ci/retrofe-patch-check` | [#29](https://github.com/L-K-M/FunKey-OS-Starling/pull/29) | Open, no feedback |
-| M1 (re-enable gmu via buildroot libs) | `package/re-enable-gmu` | [#30](https://github.com/L-K-M/FunKey-OS-Starling/pull/30) | Open, no feedback — CI may yet fail in a new place, see PR body |
-| B6 option (a) (Y/X only on games) | `retrofe/games-only-favorites` | [#31](https://github.com/L-K-M/FunKey-OS-Starling/pull/31) | Open, no feedback |
-| P2 (cache lowercase sort keys) | `retrofe/cache-lowercase-titles` | [#32](https://github.com/L-K-M/FunKey-OS-Starling/pull/32) | Open, no feedback |
+| B4 + M7 (README cd fix + button map) | `docs/readme-build-and-buttons` | [#24](https://github.com/L-K-M/FunKey-OS-Starling/pull/24) | GLM-reviewed; one wording suggestion applied; re-review clean |
+| B1 + B3 + P1c/P1d + G1 (leak, NULL-safe save, set membership, atomic save) | `retrofe/favorites-robustness` | [#25](https://github.com/L-K-M/FunKey-OS-Starling/pull/25) | GLM review run fails GLM-side (repeated, incl. reruns) - the "GLM times out" terminal state |
+| B2 (unfavorited game leaves the view) | `retrofe/unfavorite-leaves-view` | [#26](https://github.com/L-K-M/FunKey-OS-Starling/pull/26) | Same GLM-side failure; watched, no feedback |
+| M2 + V4 (empty-Favorites hint, message fade) | `retrofe/empty-favorites-hint` | [#27](https://github.com/L-K-M/FunKey-OS-Starling/pull/27) | Substantive review landed: the fade was defeated by the idle render loop (Text never reports mustRender); verified against run(), fixed by asking for frames while a message is live and once on expiry |
+| B5 (valid layout fallback) | `config/valid-layout-fallback` | [#28](https://github.com/L-K-M/FunKey-OS-Starling/pull/28) | GLM-reviewed twice; both rounds applied (layout.conf provenance, dropped a brittle line-number pin); fallback verified against layouts.list and the shipped directory |
+| G3 apply-check half (fast patch-series CI) | `ci/retrofe-patch-check` | [#29](https://github.com/L-K-M/FunKey-OS-Starling/pull/29) | GLM-reviewed twice; all suggestions applied (LC_ALL=C sort, staged stats, dispatch, read-only token, :=/?= parse, and patch(1) to mirror apply-patches.sh); the workflow runs green on the runner |
+| M1 (re-enable gmu via buildroot libs) | `package/re-enable-gmu` | [#30](https://github.com/L-K-M/FunKey-OS-Starling/pull/30) | GLM-reviewed twice; TARGET_CROSS rewrite and the structural catch applied - *_DEPENDENCIES enables nothing, so Config.in now selects all eight libraries - plus host-squashfs; full-build CI verdict pending maintainer approval |
+| B6 option (a) (Y/X only on games) | `retrofe/games-only-favorites` | [#31](https://github.com/L-K-M/FunKey-OS-Starling/pull/31) | GLM-reviewed; leaf questions answered with source evidence, and its optional suggestion adopted - the guard now says "Only games can be favorited" instead of failing silently; regenerated from the 0001-0005 baseline |
+| P2 (cache lowercase sort keys) | `retrofe/cache-lowercase-titles` | [#32](https://github.com/L-K-M/FunKey-OS-Starling/pull/32) | GLM review run fails GLM-side - same terminal state as #25; watched, no feedback |
 
 Notes on the PR flow: the PRs were first opened from the `BigBoyDevBox` fork
 (no write access was assumed at the time), where the automated GLM 5.2 review
 (`.github/workflows/zai-code-review.yml`) is structurally skipped — it only
 runs for same-repo branches — and were then re-opened from same-repo branches
-(#15–#23 closed in favour of #24–#32) so the review could run. Watch those
-for feedback; if none arrives, each PR is at “steady state, no useful
-feedback arrives” and is left open.
+(#15–#23 closed in favour of #24–#32) so the review could run. Outcome: five
+PRs were GLM-reviewed (some twice), and every actionable suggestion was
+applied and acknowledged on the PR — including two real catches (the #27 fade
+being starved of renders by the idle loop, and #30's `*_DEPENDENCIES` not
+enabling packages). The four larger RetroFE PRs (#25, #26, #32, and #27's
+GLM run) never completed a GLM review — the job's runs fail or cancel
+GLM-side even after `gh run rerun` retries — which is the “GLM times out and
+can't provide feedback” terminal state; they were watched and left open.
+
+A parallel workstream pushed `kimi/*` branches and PRs #33–#40 (later
+re-opened as #41–#45) while this ran, overlapping #25/#27/#28 and adding
+independent ideas; `kimi.md` is its review and ANALYSIS.md consolidates both
+with an overlap map, so the same items are not double-implemented.

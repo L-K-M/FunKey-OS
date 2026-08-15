@@ -52,20 +52,29 @@ mount_share () {
     (cd /mnt; mkdir -p "PICO-8" "Pokemon Mini" "Final Burn Alpha 2012" "MAME 2000" "Libretro/cores" "FunKey/.picoarch/system" "Native games" "Applications" "Emulators" "Atari lynx" "Game Boy" "Game Boy Color" "Game Boy Advance" "Game Gear" "Neo Geo Pocket" "NES" "PS1" "Sega Genesis" "Sega Master System" "SNES" "WonderSwan" "PCE-TurboGrafx")
     (mkdir -p "/mnt/FunKey/.retrofe/collections" && cd /mnt/FunKey/.retrofe/collections && mkdir -p "PICO-8" "Pokemon Mini" "Final Burn Alpha 2012" "MAME 2000" "Atari lynx" "Game Boy" "Game Boy Color" "Game Boy Advance" "Game Gear" "Neo Geo Pocket" "NES" "PS1" "Sega Genesis" "Sega Master System" "SNES" "WonderSwan" "PCE-TurboGrafx" "Libretro" "Native games" "Main")
 
-    # Check if there is a firmware update file
-    if [ -f /mnt/FunKey-*.fwu ]; then
-	warn "found a firmware update file, going into recovery mode"
-	notif set 0 "^^^^^^^^        UPDATING...^^^^^^^^"
-	recovery_mode
-    fi
-
-    # Check if there is a software update file
-    for file in $(ls /mnt/FunKey-*.swu >/dev/null 2>&1); do
-	swupdate -i "${file}"
-	if [ $? -ne 0 ]; then
+    # Check if there is a firmware update file. Test each glob match itself:
+    # "[ -f /mnt/FunKey-*.fwu ]" receives one argument per match, so with two
+    # or more update files on the card it failed with "binary operator
+    # expected" and the pending update was silently skipped on every boot.
+    for file in /mnt/FunKey-*.fwu; do
+	if [ -f "${file}" ]; then
+	    warn "found a firmware update file, going into recovery mode"
+	    notif set 0 "^^^^^^^^        UPDATING...^^^^^^^^"
+	    recovery_mode
+	    # recovery_mode reboots, so this never runs today; if it ever
+	    # returns, entering recovery once per boot is the right count.
 	    break
 	fi
     done
+
+    # No software-update (.swu) handling here. There used to be a loop, but
+    # its glob was discarded inside the command substitution, so it never
+    # installed anything. Removing rather than repairing it: no script,
+    # config or document anywhere references a .swu file (the only hit is
+    # the loop itself), so nothing users do can depend on it, and a repaired
+    # loop would reinstall the same file on every boot -- nothing deleted
+    # it after a successful install. Firmware updates above (via recovery
+    # mode) are the supported route.
     return 0
 }
 
