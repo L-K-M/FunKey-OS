@@ -1,0 +1,221 @@
+diff --git a/RetroFE/Source/Graphics/Component/ScrollingList.cpp b/RetroFE/Source/Graphics/Component/ScrollingList.cpp
+index 151ab3e..116c0fd 100755
+--- a/RetroFE/Source/Graphics/Component/ScrollingList.cpp
++++ b/RetroFE/Source/Graphics/Component/ScrollingList.cpp
+@@ -16,6 +16,7 @@
+ 
+ 
+ #include "ScrollingList.h"
++#include "Text.h"
+ #include "../Animate/Tween.h"
+ #include "../Animate/TweenSet.h"
+ #include "../Animate/Animation.h"
+@@ -120,6 +121,54 @@ void ScrollingList::setItems( std::vector<Item *> *items )
+ }
+ 
+ 
++// Rebuild only the slot showing the selected item, leaving the other slots'
++// textures alone. allocateSpritePoints() reloads every visible slot -- each
++// one a run of file probes and an image decode off the SD card -- which is a
++// lot of work to answer a change that touched one item (the favorite marker
++// on its title).
++//
++// Slots holding an Image are skipped entirely: the marker lives in
++// Item::title, which only Text components render, so reloading an image
++// would decode the same box art to draw the same picture.
++bool ScrollingList::reloadSelectedItemTexture( )
++{
++    if ( !items_ || items_->size( ) == 0 ) return false;
++    if ( !scrollPoints_ || !tweenPoints_ ) return false;
++    if ( components_.size( ) == 0 ) return false;
++    if ( selectedOffsetIndex_ >= components_.size( ) ) return false;
++    if ( selectedOffsetIndex_ >= scrollPoints_->size( ) ) return false;
++    if ( selectedOffsetIndex_ >= tweenPoints_->size( ) ) return false;
++
++    Item *item = getSelectedItem( );
++    if ( !item ) return false;
++
++    Component *old = components_.at( selectedOffsetIndex_ );
++
++    if ( !dynamic_cast<Text *>( old ) ) return true;
++
++    allocateTexture( selectedOffsetIndex_, item );
++
++    Component *c = components_.at( selectedOffsetIndex_ );
++
++    if ( c && c != old )
++    {
++        ViewInfo *view = scrollPoints_->at( selectedOffsetIndex_ );
++        resetTweens( c, tweenPoints_->at( selectedOffsetIndex_ ), view, view, 0 );
++
++        if ( old )
++        {
++            // Nothing scrolled: keep the new component exactly where the old
++            // one was. Deleting it is safe for the same reason it is in
++            // allocateSpritePoints(); its destructor frees its texture.
++            c->baseViewInfo = old->baseViewInfo;
++            delete old;
++        }
++    }
++
++    return true;
++}
++
++
+ unsigned int ScrollingList::loopIncrement( unsigned int offset, unsigned int i, unsigned int size )
+ {
+     if ( size == 0 ) return 0;
+diff --git a/RetroFE/Source/Graphics/Component/ScrollingList.h b/RetroFE/Source/Graphics/Component/ScrollingList.h
+index e427aa7..d1b32db 100755
+--- a/RetroFE/Source/Graphics/Component/ScrollingList.h
++++ b/RetroFE/Source/Graphics/Component/ScrollingList.h
+@@ -61,6 +61,7 @@ public:
+ 
+     bool allocateTexture( unsigned int index, Item *i );
+     void deallocateTexture( unsigned int index );
++    bool reloadSelectedItemTexture( );
+     void setItems( std::vector<Item *> *items );
+     void destroyItems( );
+     void setPoints( std::vector<ViewInfo *> *scrollPoints, std::vector<AnimationEvents *> *tweenPoints );
+diff --git a/RetroFE/Source/Graphics/Page.cpp b/RetroFE/Source/Graphics/Page.cpp
+index 8c94639..438fd7d 100755
+--- a/RetroFE/Source/Graphics/Page.cpp
++++ b/RetroFE/Source/Graphics/Page.cpp
+@@ -36,6 +36,7 @@ Page::Page(Configuration &config)
+     , selectedItem_(NULL)
+     , textStatusComponent_(NULL)
+     , statusMessageTime_(0.0f)
++    , statusMessageDirty_(false)
+     , loadSoundChunk_(NULL)
+     , unloadSoundChunk_(NULL)
+     , highlightSoundChunk_(NULL)
+@@ -290,7 +291,10 @@ bool Page::isIdle()
+ 
+ bool Page::mustRender()
+ {
+-	bool render = false;
++    // statusMessageDirty_: a status message appeared or expired. Text
++    // components never ask for a render themselves, and without one the
++    // message would linger past its expiry until the next keypress.
++    bool render = statusMessageDirty_;
+ 
+     for(std::vector<Component *>::iterator it = LayerComponents.begin(); it != LayerComponents.end(); ++it)
+     {
+@@ -1113,6 +1117,10 @@ void Page::update(float dt)
+         {
+             statusMessageTime_ = 0.0f;
+             statusMessage_.clear();
++
++            // The message just vanished from the component: ask for one more
++            // render or its last frame lingers until the next keypress.
++            statusMessageDirty_ = true;
+         }
+     }
+ 
+@@ -1173,6 +1181,9 @@ void Page::cleanup()
+ 
+ void Page::draw()
+ {
++    // The status message changed what is on screen; it has now been drawn.
++    statusMessageDirty_ = false;
++
+     for(unsigned int i = 0; i < NUM_LAYERS; ++i)
+     {
+         for(std::vector<Component *>::iterator it = LayerComponents.begin(); it != LayerComponents.end(); ++it)
+@@ -1221,9 +1232,15 @@ bool Page::isFavorite()
+ 
+ // Add the selected item to the favorites, or remove it if it is already there,
+ // so that a single key covers both directions.
+-void Page::togglePlaylist()
++//
++// Returns true when the toggle changed which items the visible playlist
++// holds -- the item dropped out of the favorites playlist being viewed -- and
++// the caller therefore needs the full playlist round-trip to re-lay the menu
++// out. False means every visible item is still there and a targeted refresh
++// of the selected slot is enough.
++bool Page::togglePlaylist()
+ {
+-    if(!selectedItem_) return;
++    if(!selectedItem_) return false;
+ 
+     if(isFavorite())
+     {
+@@ -1233,6 +1250,26 @@ void Page::togglePlaylist()
+     {
+         addPlaylist();
+     }
++
++    std::vector<Item *> *visible = playlist_->second;
++
++    return std::find(visible->begin(), visible->end(), selectedItem_) == visible->end();
++}
++
++
++// Refresh everything that can show the selected item's new state, without the
++// playlist exit/enter round-trip: its own slot (in text lists, where the
++// favorite marker changes what is drawn) and the reloadable components (the
++// title strip, which re-reads Item::title on setNewItemSelected).
++void Page::refreshSelectedItem()
++{
++    for(std::vector<ScrollingList *>::iterator it = activeMenu_.begin(); it != activeMenu_.end(); it++)
++    {
++        ScrollingList *menu = *it;
++        if(menu) menu->reloadSelectedItemTexture();
++    }
++
++    onNewItemSelected();
+ }
+ 
+ 
+diff --git a/RetroFE/Source/Graphics/Page.h b/RetroFE/Source/Graphics/Page.h
+index f0abd63..9562023 100755
+--- a/RetroFE/Source/Graphics/Page.h
++++ b/RetroFE/Source/Graphics/Page.h
+@@ -111,8 +111,9 @@ public:
+     void setText( std::string text, int id );
+     void addPlaylist();
+     void removePlaylist();
+-    void togglePlaylist();
++    bool togglePlaylist();
+     bool isFavorite();
++    void refreshSelectedItem();
+     void reallocateMenuSpritePoints();
+     bool isMenuScrolling();
+     bool isMenuScrollForward();
+@@ -157,6 +158,7 @@ private:
+     Text *textStatusComponent_;
+     std::string statusMessage_;
+     float statusMessageTime_;
++    bool statusMessageDirty_;
+     Sound *loadSoundChunk_;
+     Sound *unloadSoundChunk_;
+     Sound *highlightSoundChunk_;
+diff --git a/RetroFE/Source/RetroFE.cpp b/RetroFE/Source/RetroFE.cpp
+index d03b958..4fffc01 100755
+--- a/RetroFE/Source/RetroFE.cpp
++++ b/RetroFE/Source/RetroFE.cpp
+@@ -1329,8 +1329,22 @@ RetroFE::RETROFE_STATE RetroFE::processUserInput( Page *page )
+             if ( input_.newKeyPressed(UserInput::KeyCodeTogglePlaylist) )
+             {
+                 attract_.reset( );
+-                page->togglePlaylist( );
+-                state = RETROFE_PLAYLIST_REQUEST;
++                if ( page->togglePlaylist( ) )
++                {
++                    // The item left the playlist being viewed (unfavorited
++                    // while looking at favorites): the menu's contents
++                    // changed, so re-lay it out with the full round-trip.
++                    state = RETROFE_PLAYLIST_REQUEST;
++                }
++                else
++                {
++                    // Every visible item is still there; only the selected
++                    // one's marker changed. Rebuilding all visible slots
++                    // reloads each one's box art from the card for that,
++                    // which is a noticeable hitch on a toggle -- refresh just
++                    // the one slot and the reloadable texts instead.
++                    page->refreshSelectedItem( );
++                }
+             }
+             if ( input_.keystate(UserInput::KeyCodeRandom) )
+             {
