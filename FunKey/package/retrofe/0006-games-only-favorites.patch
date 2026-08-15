@@ -1,0 +1,37 @@
+diff --git a/RetroFE/Source/Graphics/Page.cpp b/RetroFE/Source/Graphics/Page.cpp
+index 598f8d2..98e39b3 100755
+--- a/RetroFE/Source/Graphics/Page.cpp
++++ b/RetroFE/Source/Graphics/Page.cpp
+@@ -1271,7 +1271,11 @@ bool Page::isFavorite()
+ // so that a single key covers both directions.
+ void Page::togglePlaylist()
+ {
+-    if(!selectedItem_) return;
++    // Only games are favoritable. A menu entry -- a system in the main menu --
++    // is not a game: favoriting it would write a playlist of system names that
++    // nothing ever displays, while showing an acknowledgement for an action
++    // with no effect.
++    if(!selectedItem_ || !selectedItem_->leaf) return;
+ 
+     if(isFavorite())
+     {
+@@ -1304,7 +1308,8 @@ CollectionInfo *Page::favoritesOwner()
+ 
+ void Page::removePlaylist()
+ {
+-    if(!selectedItem_) return;
++    // See togglePlaylist(): menu entries are not favoritable.
++    if(!selectedItem_ || !selectedItem_->leaf) return;
+ 
+     MenuInfo_S &info = collections_.back();
+     CollectionInfo *collection = info.collection;
+@@ -1419,7 +1424,8 @@ void Page::removePlaylist()
+ 
+ void Page::addPlaylist()
+ {
+-    if(!selectedItem_) return;
++    // See togglePlaylist(): menu entries are not favoritable.
++    if(!selectedItem_ || !selectedItem_->leaf) return;
+ 
+     MenuInfo_S &info = collections_.back();
+     CollectionInfo *collection = info.collection;
