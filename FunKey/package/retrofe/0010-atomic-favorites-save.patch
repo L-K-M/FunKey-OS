@@ -1,0 +1,50 @@
+diff --git a/RetroFE/Source/Collection/CollectionInfo.cpp b/RetroFE/Source/Collection/CollectionInfo.cpp
+index 0a3cbae..1ba61a4 100755
+--- a/RetroFE/Source/Collection/CollectionInfo.cpp
++++ b/RetroFE/Source/Collection/CollectionInfo.cpp
+@@ -22,6 +22,7 @@
+ #include <fstream>
+ #include <algorithm>
+ #include <exception>
++#include <cstdio>
+ #include <sys/stat.h>
+ #include <sys/types.h>
+ 
+@@ -137,6 +138,12 @@ bool CollectionInfo::Save()
+ 
+         std::string dir  = Utils::combinePath(Configuration::userPath, "collections", name, "playlists");
+         std::string file = Utils::combinePath(Configuration::userPath, "collections", name, "playlists/favorites.txt");
++        // Power can die at any moment on a handheld (instant_play exists
++        // because it does), so never rewrite the playlist in place: a pull
++        // mid-write would leave a truncated file and the favorites silently
++        // gone. Write beside it and rename over it -- one directory-entry
++        // swap, so the file on disk is always whole.
++        std::string tmpfile = file + ".tmp";
+         Logger::write(Logger::ZONE_INFO, "Collection", "Saving " + file);
+ 
+         std::ofstream filestream;
+@@ -151,7 +158,7 @@ bool CollectionInfo::Save()
+                 return false;
+             }
+ 
+-            filestream.open(file.c_str());
++            filestream.open(tmpfile.c_str());
+             std::vector<Item *> *saveitems = playlists["favorites"];
+             for(std::vector<Item *>::iterator it = saveitems->begin(); it != saveitems->end(); it++)
+             {
+@@ -172,13 +179,14 @@ bool CollectionInfo::Save()
+             // stops every later Save() from rewriting the same file on each
+             // playlist change; keeping it set on failure means the next change
+             // retries rather than dropping the favorites silently.
+-            if(filestream.good())
++            if(filestream.good() && std::rename(tmpfile.c_str(), file.c_str()) == 0)
+             {
+                 saveRequest = false;
+             }
+             else
+             {
+                 Logger::write(Logger::ZONE_ERROR, "Collection", "Save failed: " + file);
++                std::remove(tmpfile.c_str());
+                 retval = false;
+             }
+         }
