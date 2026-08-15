@@ -10,7 +10,7 @@ GMU_SITE = https://github.com/DrUm78/gmu.git
 GMU_LICENSE = GPL-2.0
 GMU_LICENSE_FILES = LICENSE
 
-GMU_DEPENDENCIES = sdl sdl_gfx sdl_image mpg123 tremor flac libmikmod wavpack
+GMU_DEPENDENCIES = sdl sdl_gfx sdl_image mpg123 tremor flac libmikmod wavpack host-squashfs
 
 # funkey.mk in the gmu sources hardcodes a hand-installed SDK at
 # /opt/FunKey-sdk -- the compiler, and the sysroot it takes SDL and the libc
