@@ -410,14 +410,14 @@ from same-repo branches so the GLM review workflow runs on them.
 
 | # | PR | Contents | Status |
 |---|----|----------|--------|
-| 1 | [#41](https://github.com/L-K-M/FunKey-OS-Starling/pull/41) | cruft removal, rememberMenu dedupe, menu.txt newline (G1, G2); layout fallback yielded to #28 | [~] open (was fork #33) |
-| 2 | [#42](https://github.com/L-K-M/FunKey-OS-Starling/pull/42) | patch 0020: kernel-toast toggle feedback (B1, G4) — unique to this set | [~] open (was #34) |
+| 1 | [#41](https://github.com/L-K-M/FunKey-OS-Starling/pull/41) | cruft removal, rememberMenu dedupe, menu.txt newline (G1, G2); layout fallback yielded to #28 | [~] open — GLM reviewed (0 actionable); both verification asks answered with evidence (first-wins proof, zero-reference grep) |
+| 2 | [#42](https://github.com/L-K-M/FunKey-OS-Starling/pull/42) | patch 0020: kernel-toast toggle feedback (B1, G4) — unique to this set | [~] open — GLM reviewed 3×; all actionable points applied (apostrophe/caret stripping, toupper UB, padding underflow crash, system()-failure fallback, seconds≤0 gate, >30-col word splitting); remaining info points answered with driver/script evidence |
 | 3 | — | empty-state hint (M3) | [-] closed (was #35): superseded by #27 (hint + fade) |
-| 4 | [#43](https://github.com/L-K-M/FunKey-OS-Starling/pull/43) | patch 0021: per-item system name (M2) — unique | [~] open (was #36) |
+| 4 | [#43](https://github.com/L-K-M/FunKey-OS-Starling/pull/43) | patch 0021: per-item system name (M2) — unique | [~] open — GLM reviewed; its major was a false positive (menu items' collectionInfo is the menu collection itself, MenuParser.cpp:82,138); applied anyway as the leaf-guard + a shared Item::owningCollectionName helper (also fixes its duplication minor); re-review 0 actionable |
 | 5 | — | subcollection leak (B2) | [-] closed (was #37): superseded by #25 (same design + fsync + set membership + null-safe save) |
 | 6 | — | atomic save (B7) | [-] closed (was #38): superseded by #25's 0009 (adds fsync) |
-| 7 | [#45](https://github.com/L-K-M/FunKey-OS-Starling/pull/45) | patch 0022: targeted texture rebuild on toggle (P1) — unique | [~] open (was #39) |
-| 8 | [#44](https://github.com/L-K-M/FunKey-OS-Starling/pull/44) | share script: N-file `.fwu` fix, dead `.swu` loop (B3) — unique | [~] open (was #40) |
+| 7 | [#45](https://github.com/L-K-M/FunKey-OS-Starling/pull/45) | patch 0022: targeted texture rebuild on toggle (P1) — unique | [~] open — GLM review never landed: the Z.ai API timed out (300 s × 3 attempts) on five separate runs over ~2 h; retried each time. This is the "GLM times out" case; left open |
+| 8 | [#44](https://github.com/L-K-M/FunKey-OS-Starling/pull/44) | share script: N-file `.fwu` fix, dead `.swu` loop (B3) — unique | [~] open — GLM reviewed twice; break-after-recovery_mode applied; .swu removal kept with evidence (the loop is verbatim-dead in both upstreams; nothing references .swu anywhere; a repaired loop would reinstall every boot) — respectful steady-state disagreement, maintainer's call |
 
 Concurrent-session PRs covering findings from this review: #28 (B6 layout
 fallback), #27 (M3 hint + fade), #25 (B2+B7 + more), #26 (B4, resolved the
@@ -425,10 +425,11 @@ other way: unfavorite removes from view), #31 (B5, resolved the other way:
 leaf-guard), #24 (U4 README button map), #30 (G3 gmu re-enable), #29 (fast
 patch CI), #32 (lowercase-sort cache). Review comments left on #25, #26, #27,
 #31 — including one real bug found in #27 (the fade can leave short messages
-drawn only at ~8% alpha on idle menus; fixes suggested).
+drawn only at ~8% alpha on idle menus; fixes suggested), and the Item::leaf
+evidence GLM asked for on #31 (constructor defaults true; only menu builders
+set false).
 
-All six RetroFE patches (0006–0011) were verified to apply cleanly in series
-after 0001–0005 and to pass syntax checks individually and combined. The kept
-patches were renumbered 0020–0022 to stay clear of the concurrent 0006–0009
-series; textual interplay with #26/#27/#31 is noted in each PR body (whichever
-lands second needs a small rebase in `Page.cpp`).
+Merge-order validation (all eleven pending RetroFE patches, buildroot filename
+order, pinned tag): the concurrent series (0006-cache → 0009-power-loss-safe)
+applies cleanly in alphabetical order and compiles. My kept patches (0020–0022)
+apply cleanly on master but not over that series; rebases offered.
