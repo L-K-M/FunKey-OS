@@ -1,6 +1,6 @@
 [![Build](https://github.com/L-K-M/FunKey-OS-Starling/actions/workflows/build.yml/badge.svg?branch=master)](https://github.com/L-K-M/FunKey-OS-Starling/actions/workflows/build.yml?query=branch%3Amaster)
 
-# Starling 3.0.0
+# Starling 3.1.0
 
 **FunKey OS for the [Anbernic RG Nano](https://anbernic.com/), with a Favorites
 feature added.**
@@ -19,8 +19,10 @@ this one covers only what Starling adds and how to install it.
 
 > ### ⚠️ Early days
 >
-> Starling 3.0.0 boots and runs on an Anbernic RG Nano — but on exactly one, and
-> not for long. Keep a card with a known-good build on it, and read
+> Starling 3.0.0 booted and ran on an Anbernic RG Nano — but on exactly one, and
+> not for long. **3.1.0 has not been on hardware at all yet**: everything it
+> changes was verified by compiling it, which cannot tell you what the screen
+> does. Keep a card with a known-good build on it, and read
 > [Recovery](#recovery) before you flash something rather than after.
 
 ## This build is for the RG Nano and no other console
@@ -47,9 +49,9 @@ Starling's filenames therefore carry the console, the version and the fork:
 
 | File | What it is |
 | --- | --- |
-| `FunKey-sdcard-Starling-3.0.0-RG_Nano.img` | Full SD card image — installs Starling, erasing the card |
-| `FunKey-rootfs-Starling-3.0.0-RG_Nano.fwu` | Firmware update — replaces the OS in place, keeping games and saves |
-| `FunKey-sdk-Starling-3.0.0.tar.gz` | Cross-toolchain, only needed to build software *for* the console |
+| `FunKey-sdcard-Starling-3.1.0-RG_Nano.img` | Full SD card image — installs Starling, erasing the card |
+| `FunKey-rootfs-Starling-3.1.0-RG_Nano.fwu` | Firmware update — replaces the OS in place, keeping games and saves |
+| `FunKey-sdk-Starling-3.1.0.tar.gz` | Cross-toolchain, only needed to build software *for* the console |
 
 The `FunKey-` prefix is not decoration and must not be removed: the console
 finds an update by globbing `/mnt/FunKey-*.fwu`, and that glob runs from the
@@ -100,7 +102,7 @@ plain text label; `tools/gen-favorites-artwork.py` generates one.
 Write the `.img` to an SD card — this erases everything on the card:
 
 ```bash
-sudo dd if=FunKey-sdcard-Starling-3.0.0-RG_Nano.img of=/dev/sdX bs=4M conv=fsync status=progress
+sudo dd if=FunKey-sdcard-Starling-3.1.0-RG_Nano.img of=/dev/sdX bs=4M conv=fsync status=progress
 ```
 
 > **Check `/dev/sdX` twice.** Naming one of your own disks here destroys it.
@@ -137,7 +139,7 @@ Replaces the OS only — games, saves and favorites are kept.
 
 1. Connect the console to your computer over USB.
 2. In the launcher press **ON/OFF**, select **MOUNT USB**, press **A** twice.
-3. Copy `FunKey-rootfs-Starling-3.0.0-RG_Nano.fwu` onto the drive that appears.
+3. Copy `FunKey-rootfs-Starling-3.1.0-RG_Nano.fwu` onto the drive that appears.
 4. **Eject the drive on your computer**, then press **A** twice on the console.
 
 Ejecting first matters: unmounting is what starts the flash, so a copy your

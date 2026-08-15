@@ -123,6 +123,23 @@ jobs:
           mapfile -t names < <(make -s print-artifacts)
           img=${names[0]}; fwu=${names[1]}; sdk=${names[2]}
 
+          # The "## <tag>" section of CHANGELOG.md, if it has one. Never fatal:
+          # a release that reached this step has a two-hour build behind it, and
+          # a missing or misspelt heading is not worth throwing that away -- the
+          # notes simply carry the table alone, as they did before.
+          : > changes.md
+          awk -v tag="## $TAG" '
+            $0 == tag      { inside = 1; next }
+            /^## /         { inside = 0 }
+            inside         { print }
+          ' CHANGELOG.md > changes.md 2>/dev/null || : > changes.md
+
+          if [ -s changes.md ]; then
+            echo "Found release notes for $TAG in CHANGELOG.md."
+          else
+            echo "::warning::No '## $TAG' section in CHANGELOG.md; publishing the file table alone."
+          fi
+
           cat > notes.md <<NOTES
           **Starling** — FunKey OS for the **Anbernic RG Nano**, with Favorites.
 
@@ -137,6 +154,10 @@ jobs:
 
           See the [README](https://github.com/L-K-M/FunKey-OS-Starling#install) for how to install or update.
           NOTES
+
+          # Appended rather than interpolated into the heredoc: the changelog is
+          # prose someone wrote, and \$ or \` in it would otherwise be expanded.
+          cat changes.md >> notes.md
 
           mapfile -t assets < assets.txt
 

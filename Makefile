@@ -34,7 +34,7 @@ BR = make -C buildroot
 # each console use different kernels, and flashing the wrong one leaves a grey
 # screen at power-on with no launcher.
 OS_NAME    = Starling
-OS_VERSION = 3.0.0
+OS_VERSION = 3.1.0
 OS_DEVICE  = RG_Nano
 
 STAMP      = $(OS_NAME)-$(OS_VERSION)
