@@ -48,6 +48,10 @@ jobs:
 
     - name: Apply the series in the order buildroot will
       run: |
+        # Match buildroot's apply-patches.sh, which sorts patches under
+        # LC_ALL=C: a different collation could apply them in a different
+        # order than the device build does.
+        export LC_ALL=C
         shopt -s nullglob
         patches=(FunKey/package/retrofe/*.patch)
         if [ ${#patches[@]} -eq 0 ]; then
@@ -71,4 +75,7 @@ jobs:
     - name: Show the resulting tree stats
       run: |
         cd retrofe
-        git diff --stat | tail -5
+        # Stage everything the patches created, including files a patch adds
+        # that git diff alone would not show, then print the summary.
+        git add -A
+        git diff --cached --stat | tail -5
