@@ -134,8 +134,10 @@ computer instead. u-boot boots whichever partition is flagged, so this selects
 Recovery with no buttons at all, and it is exactly what `normal_mode` does in
 reverse (`sfdisk -A /dev/mmcblk0 2`):
 
+Find the card with `diskutil list` on macOS, or `lsblk` on Linux, then:
+
 ```bash
-diskutil unmountDisk /dev/diskN     # macOS; use lsblk on Linux
+diskutil unmountDisk /dev/diskN
 sudo fdisk -e /dev/diskN
   flag 1
   write
