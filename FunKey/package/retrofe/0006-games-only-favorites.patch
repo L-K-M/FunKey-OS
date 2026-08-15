@@ -1,0 +1,45 @@
+diff --git a/RetroFE/Source/Graphics/Page.cpp b/RetroFE/Source/Graphics/Page.cpp
+index 8c94639..d724657 100755
+--- a/RetroFE/Source/Graphics/Page.cpp
++++ b/RetroFE/Source/Graphics/Page.cpp
+@@ -1223,6 +1223,18 @@ bool Page::isFavorite()
+ // so that a single key covers both directions.
+ void Page::togglePlaylist()
+ {
++    // Only games are favoritable. A menu entry -- a system in the main menu --
++    // is not a game: favoriting it would write a playlist of system names that
++    // nothing ever displays, while showing an acknowledgement for an action
++    // with no effect. Say why nothing happened rather than letting the key
++    // read as dead: on a handheld with one favorite key, silence is what a
++    // broken button looks like.
++    if(selectedItem_ && !selectedItem_->leaf)
++    {
++        setStatusMessage("Only games can be favorited", 1.5f);
++        return;
++    }
++
+     if(!selectedItem_) return;
+ 
+     if(isFavorite())
+@@ -1256,7 +1268,10 @@ CollectionInfo *Page::favoritesOwner()
+ 
+ void Page::removePlaylist()
+ {
+-    if(!selectedItem_) return;
++    // See togglePlaylist(): menu entries are not favoritable. No message
++    // here: X is the unmark key, and a hint belongs with the toggle that
++    // covers both directions.
++    if(!selectedItem_ || !selectedItem_->leaf) return;
+ 
+     MenuInfo_S &info = collections_.back();
+     CollectionInfo *collection = info.collection;
+@@ -1308,7 +1323,8 @@ void Page::removePlaylist()
+ 
+ void Page::addPlaylist()
+ {
+-    if(!selectedItem_) return;
++    // See togglePlaylist(): menu entries are not favoritable.
++    if(!selectedItem_ || !selectedItem_->leaf) return;
+ 
+     MenuInfo_S &info = collections_.back();
+     CollectionInfo *collection = info.collection;

@@ -1,0 +1,58 @@
+diff --git a/RetroFE/Source/Collection/CollectionInfo.cpp b/RetroFE/Source/Collection/CollectionInfo.cpp
+index 32c9653..f3ad0a8 100755
+--- a/RetroFE/Source/Collection/CollectionInfo.cpp
++++ b/RetroFE/Source/Collection/CollectionInfo.cpp
+@@ -21,6 +21,7 @@
+ #include <sstream>
+ #include <fstream>
+ #include <algorithm>
++#include <set>
+ #include <exception>
+ #include <sys/stat.h>
+ #include <sys/types.h>
+@@ -267,9 +268,13 @@ void CollectionInfo::addSubcollectionPlaylist(CollectionInfo *newinfo, const std
+     if(source == newinfo->playlists.end() || !source->second) return;
+     if(target == playlists.end() || !target->second) return;
+ 
++    // A set of what is already in the target, rather than a linear search per
++    // entry: this runs for every favorite of every system as Favorites opens.
++    std::set<Item *> merged(target->second->begin(), target->second->end());
++
+     for(std::vector<Item *>::iterator it = source->second->begin(); it != source->second->end(); it++)
+     {
+-        if(std::find(target->second->begin(), target->second->end(), *it) == target->second->end())
++        if(merged.insert(*it).second)
+         {
+             target->second->push_back(*it);
+         }
+diff --git a/RetroFE/Source/RetroFE.cpp b/RetroFE/Source/RetroFE.cpp
+index 592452d..88cfd78 100755
+--- a/RetroFE/Source/RetroFE.cpp
++++ b/RetroFE/Source/RetroFE.cpp
+@@ -35,6 +35,7 @@
+ #include "Graphics/Component/Video.h"
+ #include "Video/VideoFactory.h"
+ #include <algorithm>
++#include <set>
+ #include <dirent.h>
+ #include <fstream>
+ #include <sstream>
+@@ -1603,11 +1604,17 @@ CollectionInfo *RetroFE::getCollection(std::string collectionName)
+             // Filter items rather than copy the favorites playlist: items is
+             // already sorted, and sortPlaylists() below orders every other
+             // playlist to match whatever "all" holds.
++            //
++            // A set for the membership test: the linear std::find that was
++            // here walked the favorites for every merged game, which on a
++            // full card means thousands of scans of a growing vector while
++            // the user waits for the menu.
++            std::set<Item *> isFavorite( favorites->second->begin( ), favorites->second->end( ) );
+             std::vector<Item *> shown;
+ 
+             for ( std::vector<Item *>::iterator it = collection->items.begin( ); it != collection->items.end( ); it++ )
+             {
+-                if ( std::find( favorites->second->begin( ), favorites->second->end( ), *it ) != favorites->second->end( ) )
++                if ( isFavorite.count( *it ) )
+                 {
+                     shown.push_back( *it );
+                 }

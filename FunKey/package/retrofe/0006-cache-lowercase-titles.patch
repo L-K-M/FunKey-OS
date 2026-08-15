@@ -1,0 +1,111 @@
+diff --git a/RetroFE/Source/Collection/CollectionInfo.cpp b/RetroFE/Source/Collection/CollectionInfo.cpp
+index 218ab02..00cde90 100755
+--- a/RetroFE/Source/Collection/CollectionInfo.cpp
++++ b/RetroFE/Source/Collection/CollectionInfo.cpp
+@@ -341,10 +341,12 @@ void CollectionInfo::markFavorite(Item *item, bool favorite)
+     if(favorite && !marked)
+     {
+         item->title = favoriteMarker + item->title;
++        item->invalidateTitleCache();
+     }
+     else if(!favorite && marked)
+     {
+         item->title.erase(0, favoriteMarker.size());
++        item->invalidateTitleCache();
+     }
+ }
+ 
+diff --git a/RetroFE/Source/Collection/Item.cpp b/RetroFE/Source/Collection/Item.cpp
+index 669664b..47469e3 100755
+--- a/RetroFE/Source/Collection/Item.cpp
++++ b/RetroFE/Source/Collection/Item.cpp
+@@ -15,7 +15,7 @@
+  */
+ 
+ #include "Item.h"
+-#include "../Utility/Log.h"
++#include "../Utility/Log.h"
+ #include "../Utility/Utils.h"
+ #include <fstream>
+ #include <sstream>
+@@ -24,6 +24,8 @@
+ Item::Item()
+     : collectionInfo(NULL)
+     , leaf(true)
++    , lowercaseTitleCached_(false)
++    , lowercaseFullTitleCached_(false)
+ {
+     file = "";
+ }
+@@ -41,16 +43,32 @@ std::string Item::filename()
+ 
+ std::string Item::lowercaseTitle()
+ {
+-    std::string lcstr = title;
+-    std::transform(lcstr.begin(), lcstr.end(), lcstr.begin(), ::tolower);
+-    return lcstr;
++    if(!lowercaseTitleCached_)
++    {
++        lowercaseTitleCache_ = title;
++        std::transform(lowercaseTitleCache_.begin(), lowercaseTitleCache_.end(), lowercaseTitleCache_.begin(), ::tolower);
++        lowercaseTitleCached_ = true;
++    }
++    return lowercaseTitleCache_;
+ }
+ 
+ std::string Item::lowercaseFullTitle()
+ {
+-    std::string lcstr = fullTitle;
+-    std::transform(lcstr.begin(), lcstr.end(), lcstr.begin(), ::tolower);
+-    return lcstr;
++    if(!lowercaseFullTitleCached_)
++    {
++        lowercaseFullTitleCache_ = fullTitle;
++        std::transform(lowercaseFullTitleCache_.begin(), lowercaseFullTitleCache_.end(), lowercaseFullTitleCache_.begin(), ::tolower);
++        lowercaseFullTitleCached_ = true;
++    }
++    return lowercaseFullTitleCache_;
++}
++
++void Item::invalidateTitleCache()
++{
++    lowercaseTitleCached_ = false;
++    lowercaseFullTitleCached_ = false;
++    lowercaseTitleCache_.clear();
++    lowercaseFullTitleCache_.clear();
+ }
+ 
+ 
+diff --git a/RetroFE/Source/Collection/Item.h b/RetroFE/Source/Collection/Item.h
+index 64eae9c..3f7c63c 100755
+--- a/RetroFE/Source/Collection/Item.h
++++ b/RetroFE/Source/Collection/Item.h
+@@ -27,6 +27,10 @@ public:
+     std::string filename();
+     std::string lowercaseTitle() ;
+     std::string lowercaseFullTitle();
++    // The lowercase forms above are cached for the item's life; title is the
++    // one field that can change after load (the favorite marker), and it is
++    // changed through CollectionInfo::markFavorite(), which calls this.
++    void invalidateTitleCache();
+     std::string name;
+     std::string filepath;
+     std::string file;
+@@ -52,4 +56,17 @@ public:
+     void setInfo( std::string key, std::string value );
+     bool getInfo( std::string key, std::string &value );
+     void loadInfo( std::string path );
++
++private:
++    // lowercaseTitle()/lowercaseFullTitle() are called from sort comparators,
++    // twice per comparison, and each call used to build a fresh lowercased
++    // string. Sorting a few thousand titles meant tens of thousands of
++    // allocations on a single-core Cortex-A7 while the user waited for a
++    // menu. Both are cached after their first call instead. Titles only
++    // change at load time, and the favorite marker -- the one post-load
++    // change -- goes through markFavorite(), which invalidates the cache.
++    bool lowercaseTitleCached_;
++    bool lowercaseFullTitleCached_;
++    std::string lowercaseTitleCache_;
++    std::string lowercaseFullTitleCache_;
+ };
