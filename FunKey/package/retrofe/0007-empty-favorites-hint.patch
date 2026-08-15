@@ -1,0 +1,23 @@
+diff --git a/RetroFE/Source/RetroFE.cpp b/RetroFE/Source/RetroFE.cpp
+index d03b958..6d19d81 100755
+--- a/RetroFE/Source/RetroFE.cpp
++++ b/RetroFE/Source/RetroFE.cpp
+@@ -726,6 +726,18 @@ void RetroFE::run( )
+                 currentPage_->onNewItemSelected( );
+                 currentPage_->reallocateMenuSpritePoints( );
+ 
++                // A favorites-only collection with nothing in it is a blank
++                // page otherwise: no entries, no explanation. That is the
++                // first thing a new user opens, before anything has been
++                // favorited, so say why it is empty and how to fill it. Long
++                // enough to read, then it clears itself.
++                bool favoritesOnlyCollection = false;
++                config_.getProperty( "collections." + nextPageName + ".list.favoritesOnly", favoritesOnlyCollection );
++                if ( favoritesOnlyCollection && info->items.size( ) == 0 )
++                {
++                    currentPage_->setStatusMessage( "No favorites yet - press Y on a game", 5.0f );
++                }
++
+                 state = RETROFE_NEXT_PAGE_MENU_LOAD_ART;
+ 
+              }
