@@ -1,0 +1,74 @@
+name: RetroFE Patch Check
+
+# The RetroFE patches in FunKey/package/retrofe/ are currently validated only
+# by the tail end of a full OS build -- hours away, and the runner's time is
+# spent before the first compile error is even reached. Whether the series
+# still applies to the pinned upstream tag can be checked in under a minute,
+# so it is checked here on every change to it.
+on:
+  push:
+    branches: [ rg_nano, master ]
+    paths:
+      - 'FunKey/package/retrofe/**'
+      - '.github/workflows/retrofe-patches.yml'
+  pull_request:
+    branches: [ rg_nano, master ]
+    paths:
+      - 'FunKey/package/retrofe/**'
+      - '.github/workflows/retrofe-patches.yml'
+
+concurrency:
+  group: retrofe-patches-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  apply:
+    name: Apply the patch series to the pinned tag
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+
+    steps:
+    - uses: actions/checkout@v4
+
+    - name: Clone RetroFE at the version the package pins
+      run: |
+        # retrofe.mk carries RETROFE_VERSION = <tag>; the patches are written
+        # against exactly that tree, so read it back rather than restating a
+        # tag here for the two to drift apart.
+        version="$(sed -n 's/^RETROFE_VERSION[[:space:]]*=[[:space:]]*//p' \
+          FunKey/package/retrofe/retrofe.mk)"
+        if [ -z "$version" ]; then
+          echo "could not read RETROFE_VERSION from retrofe.mk" >&2
+          exit 1
+        fi
+        echo "Pinned RetroFE version: $version"
+        git clone --quiet --branch "$version" --depth 1 \
+          https://github.com/FunKey-Project/RetroFE.git retrofe
+        # A shallow clone still has an index; git apply only needs the worktree.
+
+    - name: Apply the series in the order buildroot will
+      run: |
+        shopt -s nullglob
+        patches=(FunKey/package/retrofe/*.patch)
+        if [ ${#patches[@]} -eq 0 ]; then
+          echo "no patches found" >&2
+          exit 1
+        fi
+        cd retrofe
+        for patch in "${patches[@]}"; do
+          echo ">>> applying $(basename "$patch")"
+          # Same flags buildroot's support/scripts/apply-patches.sh effectively
+          # exercises: a real apply, not just --check, so a patch that checks
+          # clean but produces a tree that cannot be re-applied on top of still
+          # fails at the patch responsible.
+          if ! git apply --whitespace=nowarn "../$patch"; then
+            echo "FAILED to apply $(basename "$patch")" >&2
+            exit 1
+          fi
+        done
+        echo "Applied ${#patches[@]} patches cleanly."
+
+    - name: Show the resulting tree stats
+      run: |
+        cd retrofe
+        git diff --stat | tail -5
