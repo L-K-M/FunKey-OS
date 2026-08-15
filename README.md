@@ -72,9 +72,12 @@ something.
 
 Pressing **Y** does two visible things: a favorited game keeps a `*` in front of
 its name, so you can see what is marked without opening Favorites, and a short
-**Added to favorites** / **Removed from favorites** message appears for a
-moment. All 13 bundled themes show the message; a theme you add yourself needs a
-`<statusText/>` element in its `layout.xml` or it will show only the `*`.
+**Added to favorites** / **Removed from favorites** notice appears over the
+screen. That notice is the same overlay volume, brightness and screenshots use,
+so it shows above every theme, including ones you add yourself.
+
+Inside Favorites the title bar names each game's own system rather than
+"Favorites", which is also which emulator is about to run.
 
 Each system keeps its own list and the Favorites menu is assembled from those,
 so there is no second list to fall out of sync. Marking a game from inside
