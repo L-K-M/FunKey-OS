@@ -1,0 +1,75 @@
+diff --git a/RetroFE/Source/Collection/CollectionInfo.cpp b/RetroFE/Source/Collection/CollectionInfo.cpp
+index 0a3cbae..388307a 100755
+--- a/RetroFE/Source/Collection/CollectionInfo.cpp
++++ b/RetroFE/Source/Collection/CollectionInfo.cpp
+@@ -71,6 +71,27 @@ CollectionInfo::~CollectionInfo()
+         items.erase(it);
+         it = items.begin();
+     }
++
++    // Only now that every Item has been deleted exactly once, through this
++    // collection's own items list: the owned subcollections hold pointers to
++    // those very same objects, so their lists must be emptied rather than
++    // walked. Deleting them earlier would have them delete Items twice, and
++    // leaving them undeleted leaked one collection per system per visit.
++    for(std::vector<CollectionInfo *>::iterator sub = ownedSubcollections_.begin();
++        sub != ownedSubcollections_.end(); ++sub)
++    {
++        (*sub)->items.clear();
++        delete *sub;
++    }
++    ownedSubcollections_.clear();
++}
++
++void CollectionInfo::ownSubcollection(CollectionInfo *subcollection)
++{
++    if(subcollection && subcollection != this)
++    {
++        ownedSubcollections_.push_back(subcollection);
++    }
+ }
+ 
+ // Create a single directory. Returns true if it exists as a directory
+diff --git a/RetroFE/Source/Collection/CollectionInfo.h b/RetroFE/Source/Collection/CollectionInfo.h
+index 0cedb9f..3fe50d7 100755
+--- a/RetroFE/Source/Collection/CollectionInfo.h
++++ b/RetroFE/Source/Collection/CollectionInfo.h
+@@ -32,6 +32,14 @@ public:
+     void sortPlaylists();
+     void addSubcollection(CollectionInfo *info);
+     void addSubcollectionPlaylist(CollectionInfo *info, const std::string &playlist);
++    // A collection assembled from .sub files borrows every item from the
++    // subcollections that were built to find them. Those subcollections must
++    // outlive it -- Item::collectionInfo points back at them, for launching
++    // and for writing favorites to the system a game belongs to -- so the
++    // aggregate takes ownership of them and frees them with itself. Without
++    // this, every visit to such a menu leaks one CollectionInfo per system,
++    // with every game on the card constructed again inside it.
++    void ownSubcollection(CollectionInfo *subcollection);
+     static void markFavorite(Item *item, bool favorite);
+     static const std::string favoriteMarker;
+     void extensionList(std::vector<std::string> &extensions);
+@@ -51,6 +59,8 @@ public:
+ private:
+     std::string metadataPath_;
+     std::string extensions_;
++    // Collections whose lifetime this object owns; see ownSubcollection().
++    std::vector<CollectionInfo *> ownedSubcollections_;
+     static bool itemIsLess(Item *lhs, Item *rhs);
+ 
+ };
+diff --git a/RetroFE/Source/RetroFE.cpp b/RetroFE/Source/RetroFE.cpp
+index d03b958..592452d 100755
+--- a/RetroFE/Source/RetroFE.cpp
++++ b/RetroFE/Source/RetroFE.cpp
+@@ -1538,6 +1538,10 @@ CollectionInfo *RetroFE::getCollection(std::string collectionName)
+                 subcollection->subsSplit = subsSplit;
+                 cib.injectMetadata( subcollection );
+                 subcollections.push_back( subcollection );
++                // The aggregate outlives this function and its local vector;
++                // hand each subcollection over so it is freed when the
++                // aggregate is, instead of never.
++                collection->ownSubcollection( subcollection );
+             }
+         }
+     }
