@@ -31,18 +31,18 @@ branch.
 | --- | --- | --- |
 | Subcollection leak on every Favorites visit; NULL-safe `Save()`; set-based narrowing/merge; power-loss-safe atomic favorites save | B1, B3, P1c, P1d, G1 | [#25](https://github.com/L-K-M/FunKey-OS-Starling/pull/25) |
 | Unfavorited game leaves the list on screen (narrowed views) | B2 | [#26](https://github.com/L-K-M/FunKey-OS-Starling/pull/26) |
-| Empty-Favorites hint + status-message fade | M2, V4 | [#27](https://github.com/L-K-M/FunKey-OS-Starling/pull/27) — see review comment: short messages may only ever render at ~8% alpha on idle menus; #45's dirty-flag or #42's OSD route are the fixes |
+| Empty-Favorites hint + status-message fade | M2, V4 | [#27](https://github.com/L-K-M/FunKey-OS-Starling/pull/27) — fade render-timing bug found in second review, fixed by its author ("Ask for frames while a status message is up") |
 | Y/X no longer favorite menu entries (games only) | B6(a) | [#31](https://github.com/L-K-M/FunKey-OS-Starling/pull/31) |
 | Cache lowercase sort titles (sort-time allocations) | P2 | [#32](https://github.com/L-K-M/FunKey-OS-Starling/pull/32) |
 | Valid layout fallback in `settings.conf` | B5 | [#28](https://github.com/L-K-M/FunKey-OS-Starling/pull/28) |
 | README native-build `cd` fix + full button map | B4, M7 | [#24](https://github.com/L-K-M/FunKey-OS-Starling/pull/24) |
 | Fast RetroFE patch-series CI apply-check | G3 (apply half) | [#29](https://github.com/L-K-M/FunKey-OS-Starling/pull/29) |
 | gmu re-enabled against buildroot's FLAC/WavPack | M1 | [#30](https://github.com/L-K-M/FunKey-OS-Starling/pull/30) |
-| Drop ~4.4 MB of unreferenced files (splash_BAK/device_BAK/tmp/ico) + `rememberMenu` duplicate + `menu.txt` newline | K1 | [#41](https://github.com/L-K-M/FunKey-OS-Starling/pull/41) |
-| Favorite-toggle feedback via the kernel notification overlay (fbtft OSD) — kills the statusText/title overlap on device | K2 (V1 done properly) | [#42](https://github.com/L-K-M/FunKey-OS-Starling/pull/42) |
-| Per-item owning system in the Favorites status bar ("NES" instead of "Favorites") | K3 | [#43](https://github.com/L-K-M/FunKey-OS-Starling/pull/43) |
-| `share`: N-file `.fwu` glob fix + removal of the never-run `.swu` loop | K4 | [#44](https://github.com/L-K-M/FunKey-OS-Starling/pull/44) |
-| Lighter toggle refresh: rebuild one slot instead of the whole wheel + statusMessageDirty_ render fix | K5 | [#45](https://github.com/L-K-M/FunKey-OS-Starling/pull/45) |
+| Drop ~4.4 MB of unreferenced files (splash_BAK/device_BAK/tmp/ico) + `rememberMenu` duplicate + `menu.txt` newline | K1 | [#41](https://github.com/L-K-M/FunKey-OS-Starling/pull/41) — GLM-reviewed, 0 actionable |
+| Favorite-toggle feedback via the kernel notification overlay (fbtft OSD) — kills the statusText/title overlap on device | K2 (V1 done properly) | [#42](https://github.com/L-K-M/FunKey-OS-Starling/pull/42) — GLM-reviewed 3×, all points applied/answered |
+| Per-item owning system in the Favorites status bar ("NES" instead of "Favorites") | K3 | [#43](https://github.com/L-K-M/FunKey-OS-Starling/pull/43) — GLM-reviewed; leaf-guard + shared helper applied; re-review clean |
+| `share`: N-file `.fwu` glob fix + removal of the never-run `.swu` loop | K4 | [#44](https://github.com/L-K-M/FunKey-OS-Starling/pull/44) — GLM-reviewed 2×; .swu removal defended with upstream evidence |
+| Lighter toggle refresh: rebuild one slot instead of the whole wheel + statusMessageDirty_ render fix | K5 | [#45](https://github.com/L-K-M/FunKey-OS-Starling/pull/45) — GLM never landed (Z.ai API timeouts ×5); hand-verified |
 
 Closed as superseded (second review produced duplicates; the better version
 won): fork PRs #33–#40 → same-repo #41–#45; #35 (hint) → #27; #37 (leak) →
