@@ -42,11 +42,12 @@ jobs:
       run: |
         # retrofe.mk carries RETROFE_VERSION = <tag>; the patches are written
         # against exactly that tree, so read it back rather than restating a
-        # tag here for the two to drift apart. Strip any trailing comment and
-        # whitespace (and a CRLF, should the file ever be edited on Windows)
-        # so a perfectly reasonable inline note cannot become part of a tag
-        # name that git clone then fails to find.
-        version="$(sed -n 's/^RETROFE_VERSION[[:space:]]*=[[:space:]]*//p' \
+        # tag here for the two to drift apart. Accept every assignment form
+        # make allows (=, :=, ?=) and strip any trailing comment or whitespace
+        # (and a CRLF, should the file ever be edited on Windows) so neither a
+        # perfectly reasonable inline note nor a different assignment operator
+        # can produce a tag name that git clone then fails to find.
+        version="$(sed -nE 's/^RETROFE_VERSION[[:space:]]*(:|\?)?=[[:space:]]*//p' \
           FunKey/package/retrofe/retrofe.mk | head -n1 | sed 's/[[:space:]#].*$//')"
         if [ -z "$version" ]; then
           echo "could not read RETROFE_VERSION from retrofe.mk" >&2
@@ -72,11 +73,12 @@ jobs:
         cd retrofe
         for patch in "${patches[@]}"; do
           echo ">>> applying $(basename "$patch")"
-          # Same flags buildroot's support/scripts/apply-patches.sh effectively
-          # exercises: a real apply, not just --check, so a patch that checks
-          # clean but produces a tree that cannot be re-applied on top of still
-          # fails at the patch responsible.
-          if ! git apply --whitespace=nowarn "../$patch"; then
+          # Buildroot's support/scripts/apply-patches.sh applies with plain
+          # patch(1) using exactly these flags, so use them too: the point of
+          # this job is to predict the device build, and patch(1) will accept
+          # fuzz git apply would refuse (and vice versa) -- a series that only
+          # applies under one of the two has not been validated.
+          if ! patch -g0 -p1 --no-backup-if-mismatch -N -f -i "../$patch"; then
             echo "FAILED to apply $(basename "$patch")" >&2
             exit 1
           fi
