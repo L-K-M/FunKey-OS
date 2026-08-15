@@ -106,6 +106,28 @@ sudo dd if=FunKey-sdcard-Starling-3.0.0-RG_Nano.img of=/dev/sdX bs=4M conv=fsync
 guard rails. Then insert the card and power on; the first boot resizes the
 filesystem and creates the swap and share partitions.
 
+## Button map
+
+Everything the launcher listens for, not just the favorites keys. FN is the
+small round button; **FN + X** means hold FN and tap X.
+
+| Button | Action |
+| --- | --- |
+| **D-pad** | Move through the menus |
+| **A** | Open the highlighted system or launch the highlighted game |
+| **B** | Back |
+| **Y** | Mark the highlighted game as a favorite, or unmark it |
+| **X** | Unmark the highlighted game (Y already toggles both ways) |
+| **START** | Switch between favorites and all games, within one system |
+| **L** / **R** | Jump to the previous / next letter of the alphabet |
+| **FN + L** / **FN + R** | Previous / next playlist |
+| **FN** (alone) | Launch a random game from the list you are looking at — inside Favorites this means a random favorite |
+| **MENU** | Quick menu: volume, brightness, USB sharing, theme, launcher, power down |
+| **FN + A** / **FN + Y** | Volume up / down |
+| **FN + X** / **FN + B** | Brightness up / down |
+| **FN + L + R** | System statistics overlay |
+| **FN + UP** | Screenshot |
+
 ## Update
 
 Replaces the OS only — games, saves and favorites are kept.
@@ -214,7 +236,7 @@ sudo apt install make binutils build-essential gcc g++ patch bzip2 perl cpio \
   ca-certificates openssh-client expect locales sudo procps
 
 git clone https://github.com/L-K-M/FunKey-OS-Starling.git
-cd FunKey-OS
+cd FunKey-OS-Starling
 make sdk all
 ```
 
