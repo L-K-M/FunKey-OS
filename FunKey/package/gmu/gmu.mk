@@ -10,7 +10,7 @@ GMU_SITE = https://github.com/DrUm78/gmu.git
 GMU_LICENSE = GPL-2.0
 GMU_LICENSE_FILES = LICENSE
 
-GMU_DEPENDENCIES = sdl
+GMU_DEPENDENCIES = sdl sdl_gfx sdl_image mpg123 tremor flac libmikmod wavpack
 
 # funkey.mk in the gmu sources hardcodes a hand-installed SDK at
 # /opt/FunKey-sdk -- the compiler, and the sysroot it takes SDL and the libc
@@ -26,23 +26,30 @@ GMU_DEPENDENCIES = sdl
 # the other would point at a directory that is not there. TARGET_CC and
 # STAGING_DIR are correct whatever either tuple is called.
 #
-# The clock and st-sdl packages carry the same fix for the same reason; gmu is
-# the one package here that never got it.
+# The package script also unpacks and cross-builds its own copies of flac and
+# wavpack under ./cross, configured with --host=arm-funkey-linux-musleabihf --
+# a triplet that matches none of buildroot's arm-linux-* wrappers, so configure
+# silently fell back to the host compiler and produced x86_64 libraries that
+# could not link into an ARM binary. Buildroot already builds both packages
+# (BR2_PACKAGE_FLAC, BR2_PACKAGE_WAVPACK, in the defconfig since before gmu
+# was first disabled) into STAGING_DIR, correctly cross-compiled, and the
+# Makefile links them by their plain -l names -- so the vendored builds are
+# dropped rather than fixed, and -I/-Lcross/funkey are repointed at the
+# staging tree the rest of funkey.mk already uses.
 #
-# TARGET_MAKE_ENV is what puts $(HOST_DIR)/bin on PATH. The package script
-# cross-configures the vendored flac and wavpack with
-# --host=arm-funkey-linux-musleabihf, and without that on PATH configure quietly
-# fell back to the host compiler and then fed wavpack's ARM assembly to the
-# x86_64 assembler, several hundred lines of "no such instruction" before the
-# real error.
+# The ./package script itself is not run at all: apart from the vendored
+# libraries, all it did beyond make was mksquashfs, and GMU_CREATE_OPK below
+# builds the OPK from this package's own opk/ directory instead.
+#
+# The clock and st-sdl packages carry the same TARGET_CC/STAGING_DIR fix for
+# the same reason.
 define GMU_BUILD_CMDS
 	(cd $(@D); \
-	sed -i -e 's|rm -rf|#rm -rf|g' package; \
-	sed -i -e 's|make -f Makefile.funkey clean|#make -f Makefile.funkey clean|g' package; \
 	sed -i -e 's|/opt/FunKey-sdk/bin/arm-funkey-linux-musleabihf-gcc|$(TARGET_CC)|g' funkey.mk; \
 	sed -i -e 's|/opt/FunKey-sdk/arm-funkey-linux-musleabihf/sysroot|$(STAGING_DIR)|g' funkey.mk; \
-	chmod +x package; \
-	$(TARGET_MAKE_ENV) ./package \
+	sed -i -e 's|-Icross/funkey/include|-I$(STAGING_DIR)/usr/include|g' funkey.mk; \
+	sed -i -e 's|-Lcross/funkey/lib|-L$(STAGING_DIR)/usr/lib|g' funkey.mk; \
+	$(TARGET_MAKE_ENV) $(MAKE) -f Makefile.funkey \
 	)
 endef
 
