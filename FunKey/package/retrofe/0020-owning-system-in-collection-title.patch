@@ -1,17 +1,8 @@
 diff --git a/RetroFE/Source/Collection/Item.cpp b/RetroFE/Source/Collection/Item.cpp
-index 669664b..cd27d62 100755
+index 47469e3..fe2e0aa 100755
 --- a/RetroFE/Source/Collection/Item.cpp
 +++ b/RetroFE/Source/Collection/Item.cpp
-@@ -15,7 +15,7 @@
-  */
- 
- #include "Item.h"
--#include "../Utility/Log.h"
-+#include "../Utility/Log.h"
- #include "../Utility/Utils.h"
- #include <fstream>
- #include <sstream>
-@@ -32,6 +32,23 @@ Item::~Item()
+@@ -34,6 +34,23 @@ Item::~Item()
  {
  }
  
@@ -36,13 +27,13 @@ index 669664b..cd27d62 100755
  {
      return Utils::getFileName(filepath);
 diff --git a/RetroFE/Source/Collection/Item.h b/RetroFE/Source/Collection/Item.h
-index 64eae9c..10e80db 100755
+index 3f7c63c..0505019 100755
 --- a/RetroFE/Source/Collection/Item.h
 +++ b/RetroFE/Source/Collection/Item.h
-@@ -27,6 +27,7 @@ public:
-     std::string filename();
-     std::string lowercaseTitle() ;
-     std::string lowercaseFullTitle();
+@@ -31,6 +31,7 @@ public:
+     // one field that can change after load (the favorite marker), and it is
+     // changed through CollectionInfo::markFavorite(), which calls this.
+     void invalidateTitleCache();
 +    std::string owningCollectionName(const std::string &pageCollection) const;
      std::string name;
      std::string filepath;
