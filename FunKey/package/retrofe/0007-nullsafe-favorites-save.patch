@@ -1,0 +1,27 @@
+diff --git a/RetroFE/Source/Collection/CollectionInfo.cpp b/RetroFE/Source/Collection/CollectionInfo.cpp
+index 388307a..32c9653 100755
+--- a/RetroFE/Source/Collection/CollectionInfo.cpp
++++ b/RetroFE/Source/Collection/CollectionInfo.cpp
+@@ -172,8 +172,21 @@ bool CollectionInfo::Save()
+                 return false;
+             }
+ 
++            // operator[] would silently insert a NULL vector for a collection
++            // built without playlists, and the loop below would then walk it.
++            // addPlaylists() creates the key for every collection it runs on,
++            // so this only fires for collections that somehow skipped it.
++            Playlists_T::iterator favorites = playlists.find("favorites");
++            std::vector<Item *> *saveitems =
++                (favorites != playlists.end()) ? favorites->second : NULL;
++
++            if(!saveitems)
++            {
++                Logger::write(Logger::ZONE_WARNING, "Collection", "Not saving favorites: \"" + name + "\" has no favorites playlist");
++                return false;
++            }
++
+             filestream.open(file.c_str());
+-            std::vector<Item *> *saveitems = playlists["favorites"];
+             for(std::vector<Item *>::iterator it = saveitems->begin(); it != saveitems->end(); it++)
+             {
+                 if ((*it)->collectionInfo->name == name)
