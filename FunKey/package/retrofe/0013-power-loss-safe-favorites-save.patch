@@ -1,5 +1,5 @@
 diff --git a/RetroFE/Source/Collection/CollectionInfo.cpp b/RetroFE/Source/Collection/CollectionInfo.cpp
-index f3ad0a8..218ab02 100755
+index 98e82bd..5625c3b 100755
 --- a/RetroFE/Source/Collection/CollectionInfo.cpp
 +++ b/RetroFE/Source/Collection/CollectionInfo.cpp
 @@ -33,6 +33,9 @@
@@ -31,7 +31,7 @@ index f3ad0a8..218ab02 100755
              for(std::vector<Item *>::iterator it = saveitems->begin(); it != saveitems->end(); it++)
              {
                  if ((*it)->collectionInfo->name == name)
-@@ -209,7 +223,30 @@ bool CollectionInfo::Save()
+@@ -209,11 +223,43 @@ bool CollectionInfo::Save()
              // retries rather than dropping the favorites silently.
              if(filestream.good())
              {
@@ -54,6 +54,10 @@ index f3ad0a8..218ab02 100755
 +                else
 +                {
 +                    Logger::write(Logger::ZONE_ERROR, "Collection", "Save failed: " + file);
++                    // The unpublished temp file would otherwise sit on the
++                    // share partition, visible over USB. The real list is
++                    // untouched, so the only cleanup is to take it with us.
++                    std::remove(tmp.c_str());
 +                    retval = false;
 +                }
 +#else
@@ -62,3 +66,12 @@ index f3ad0a8..218ab02 100755
              }
              else
              {
+                 Logger::write(Logger::ZONE_ERROR, "Collection", "Save failed: " + file);
++#if !defined(_WIN32)
++                // Same as the rename failure: do not leave the failed write's
++                // temp file behind on the share partition.
++                std::remove(tmp.c_str());
++#endif
+                 retval = false;
+             }
+         }
