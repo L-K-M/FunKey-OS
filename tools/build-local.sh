@@ -2,7 +2,7 @@
 # Build the working tree -- uncommitted changes and all -- in the same
 # container image CI uses.
 #
-#   tools/build-local.sh                          make sdk all
+#   tools/build-local.sh                          make all
 #   tools/build-local.sh image update             any Makefile target
 #   tools/build-local.sh FunKey/retrofe-dirclean image update
 #   tools/build-local.sh --log                    show the last build's br.log
@@ -26,6 +26,9 @@
 # The volume persists between runs, so a second build resumes rather than
 # restarting -- which matters when the first one takes hours under emulation.
 # --reset is how you deliberately start over.
+#
+# buildroot is the one directory that is not copied: it is a submodule, and the
+# container clones it itself. See the note above check_buildroot.
 
 set -u
 
@@ -63,7 +66,7 @@ for arg in "$@"; do
         --reset) mode=reset ;;
         --log)   mode=log ;;
         -h|--help)
-            sed -n '2,12p' "$0" | sed 's/^# \{0,1\}//' >&2
+            sed -n '2,10p' "$0" | sed 's/^# \{0,1\}//' >&2
             exit 2
             ;;
         -*) die "unknown option: ${arg}" ;;
@@ -95,13 +98,6 @@ if [ "${mode}" = reset ]; then
     exit 0
 fi
 
-# buildroot is a submodule and the Makefile only fetches it when buildroot/.git
-# is missing. The .git directory is not copied into the container (it is large
-# and the build has no use for it), so an unpopulated submodule would surface
-# in there as a mystery rather than here as a sentence.
-[ -f buildroot/Makefile ] \
-    || die "buildroot/ is empty -- run: git submodule update --init"
-
 # ---------------------------------------------------------- image, container
 
 if ! docker image inspect "${IMAGE}" >/dev/null 2>&1; then
@@ -128,6 +124,44 @@ fi
 # that read nothing.
 in_container() {
     docker exec -i -u funkey -w "${SRC}" "${CONTAINER}" "$@"
+}
+
+# buildroot is a submodule, and it is deliberately not copied in. The Makefile
+# fetches it itself:
+#
+#     buildroot/.git:
+#             git submodule init && git submodule update
+#
+# That rule runs whenever buildroot/.git is missing, and it is always missing
+# in the container: .git is not copied, because the container needs its own
+# clone for exactly this rule to work. Sending buildroot's files in therefore
+# left git cloning into a directory that already had a buildroot in it, which
+# it refuses to do -- "already exists and is not an empty directory" -- and the
+# build stopped before it started. So the container clones buildroot, as CI
+# does, and half a gigabyte of untouched upstream sources stays out of every
+# copy.
+#
+# The price is that a buildroot differing from the container's is not the one
+# that gets built. Building something other than what is in front of you is the
+# whole thing this script exists to prevent, so say so rather than let it pass.
+check_buildroot() {
+    want="$(git rev-parse -q --verify HEAD:buildroot 2>/dev/null || true)"
+    have="$(in_container git rev-parse -q --verify HEAD:buildroot 2>/dev/null || true)"
+
+    if [ -n "${want}" ] && [ -n "${have}" ] && [ "${want}" != "${have}" ]; then
+        echo ""
+        echo "NOTE: the container pins a different buildroot than this tree does."
+        echo "        here:      ${want}"
+        echo "        container: ${have}"
+        echo "      The build uses the container's. To refresh it:"
+        echo "        docker rmi ${IMAGE} && tools/build-local.sh --reset"
+    fi
+
+    if [ -n "$(git status --porcelain -- buildroot 2>/dev/null)" ]; then
+        echo ""
+        echo "NOTE: buildroot/ has local changes here. They are not copied in --"
+        echo "      the container builds the submodule commit it cloned."
+    fi
 }
 
 show_log() {
@@ -160,30 +194,64 @@ esac
 
 # ------------------------------------------------------------------ the copy
 
-# Everything except the build's own output, which lives in the volume and must
-# survive the copy -- that is what makes a second run incremental. br.log is
-# excluded for the same reason: the container writes its own.
+# What the copy leaves behind matters as much as what it sends. The container's
+# tree starts as a clone of master, so a file this tree renamed or deleted is
+# still sitting there -- and buildroot applies every .patch in a package
+# directory, in name order. A patch renamed here and left there is applied
+# twice, under two numbers. So the source is cleared out first and this tree is
+# laid down whole; only the build's own output survives, which is what makes a
+# second run resume rather than restart.
 #
-# Both directory and directory/* forms are given because GNU tar and the bsdtar
-# on macOS do not agree on whether excluding a directory excludes its contents.
+# Both sides skip the same paths, named here once. No parentheses: the sending
+# find gets this by word splitting, the receiving one gets it inside sh -c, and
+# a form that needs no quoting is a form that cannot be quoted wrong.
+#
+#   .git       the container has its own, and the submodule rule needs it
+#   buildroot  cloned in the container -- see check_buildroot above
+#   br.log     the container writes its own; it is cleared just before the build
+#   the rest   build output, which lives in the volume
+KEEP="-path ./.git -prune \
+-o -path ./buildroot -prune \
+-o -path ./FunKey/output -prune \
+-o -path ./Recovery/output -prune \
+-o -path ./SDK/output -prune \
+-o -path ./download -prune \
+-o -path ./images -prune \
+-o -path ./br.log -prune"
+
 say "Copying the working tree into the container"
-tar -cf - \
-    --exclude='./.git' --exclude='./.git/*' \
-    --exclude='./FunKey/output' --exclude='./FunKey/output/*' \
-    --exclude='./Recovery/output' --exclude='./Recovery/output/*' \
-    --exclude='./SDK/output' --exclude='./SDK/output/*' \
-    --exclude='./download' --exclude='./download/*' \
-    --exclude='./images' --exclude='./images/*' \
-    --exclude='./output' --exclude='./output/*' \
-    --exclude='./root' --exclude='./tmp' \
-    --exclude='./br.log' \
-    . | in_container tar -xf - -C "${SRC}" \
-    || die "copying the working tree in failed"
+
+# shellcheck disable=SC2086 -- KEEP is a find expression, deliberately split
+in_container sh -c "find . ${KEEP} -o ! -type d -print0 | xargs -0 -r rm -f --" \
+    || die "clearing the previous copy out of the container failed"
+
+list="$(mktemp)" || die "cannot create a temporary file"
+
+# Directories are left out of the list deliberately. tar creates the ones it
+# needs as it extracts, and a list of files alone leaves it nothing to recurse
+# into -- so the pruning above holds without --no-recursion, which GNU tar and
+# the bsdtar on macOS do not spell the same way. Names go one per line, which
+# is how both read -T, and several hundred of these have spaces in them.
+# shellcheck disable=SC2086 -- KEEP is a find expression, deliberately split
+find . ${KEEP} -o ! -type d -print > "${list}" \
+    || { rm -f "${list}"; die "listing the working tree failed"; }
+
+tar -cf - -T "${list}" | in_container tar -xf - -C "${SRC}"
+copied=$?
+rm -f "${list}"
+[ "${copied}" -eq 0 ] || die "copying the working tree in failed"
 
 # ----------------------------------------------------------------- the build
 
+check_buildroot
+
+# So that a build dying before buildroot starts cannot be read through the
+# previous run's log.
+in_container rm -f br.log
+
 say "make${targets}"
-echo "(the first build takes hours under emulation; later ones resume)"
+echo "(the first build clones buildroot and takes hours under emulation;"
+echo " later ones resume)"
 echo ""
 
 # shellcheck disable=SC2086 -- targets is a deliberately split list

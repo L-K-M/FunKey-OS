@@ -217,11 +217,12 @@ To build what is in front of you — local changes, committed or not:
 tools/build-local.sh
 ```
 
-Only Docker is needed. The script copies your working tree into the build
-container, keeps the build state in a Docker volume so a second run resumes
-instead of starting over, and prints `br.log` if the build fails — the Makefile
-runs buildroot through `brmake`, which sends every error there and leaves the
-terminal showing only which package had started.
+Only Docker is needed — not even a checked-out `buildroot/`, which the
+container clones itself on the first run. The script copies the rest of your
+working tree in, keeps the build state in a Docker volume so a second run
+resumes instead of starting over, and prints `br.log` if the build fails — the
+Makefile runs buildroot through `brmake`, which sends every error there and
+leaves the terminal showing only which package had started.
 
 Any Makefile target works: `tools/build-local.sh image update`. Add
 `--shell` for a shell in the build tree, `--log` to reread the last failure,
