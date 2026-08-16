@@ -209,10 +209,33 @@ computer.
 Both routes produce the same files in `images/` and compile the whole OS:
 budget **1.5–3 hours** and **~12 GB** of free disk.
 
-### With Docker
+### Your own working tree, with Docker
 
-Only Docker is needed — the container brings its own toolchain and clones this
-repository itself.
+To build what is in front of you — local changes, committed or not:
+
+```bash
+tools/build-local.sh
+```
+
+Only Docker is needed. The script copies your working tree into the build
+container, keeps the build state in a Docker volume so a second run resumes
+instead of starting over, and prints `br.log` if the build fails — the Makefile
+runs buildroot through `brmake`, which sends every error there and leaves the
+terminal showing only which package had started.
+
+Any Makefile target works: `tools/build-local.sh image update`. Add
+`--shell` for a shell in the build tree, `--log` to reread the last failure,
+`--reset` to discard the build state.
+
+> **Changing a patch does not trigger a rebuild.** Buildroot applies
+> `FunKey/package/*/…patch` once, at extract time, so editing one and
+> rebuilding silently keeps the old binary. Force it:
+> `tools/build-local.sh FunKey/retrofe-dirclean image update`.
+
+### An unmodified build, with Docker
+
+The container clones the repository itself, so this ignores your working tree
+entirely and builds `master` as published:
 
 ```bash
 curl -O https://raw.githubusercontent.com/L-K-M/FunKey-OS-Starling/master/docker/Dockerfile
@@ -220,6 +243,12 @@ docker build --platform linux/amd64 -t starling .
 docker run --platform linux/amd64 --name starling starling
 docker cp starling:/home/funkey/FunKey-OS/images ./images
 ```
+
+> Bind-mounting your tree over the container's (`-v "$PWD":/home/funkey/FunKey-OS`)
+> looks like the obvious way to build local changes and is not: buildroot
+> installs a cross toolchain, which means hardlinks and filenames differing only
+> in case, onto what is a case-insensitive filesystem on macOS. Use
+> `tools/build-local.sh`, which builds on a Linux volume instead.
 
 > **`--platform linux/amd64` is not optional on Apple Silicon.** The
 > cross-toolchain the build downloads is an x86_64 binary and can only run in an
