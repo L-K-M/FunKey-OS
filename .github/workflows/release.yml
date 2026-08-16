@@ -19,6 +19,10 @@ on:
   # since a release has to point at a fixed commit. The check job below still
   # enforces the FunKey-OS-* name, so this is the only way to publish and it
   # still cannot publish from a branch or an unrelated tag.
+  #
+  # Cut the tag with tools/set-version.sh, which bumps every version string
+  # in step, requires the CHANGELOG section this workflow reads, and pushes
+  # the Starling-* tag.
   workflow_dispatch:
 
 # Restrict every job, then grant write to publish alone. Omitting this block

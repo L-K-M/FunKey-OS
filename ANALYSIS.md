@@ -168,10 +168,11 @@ was disabled.
 `etc/issue` and `sw-description` are all kept by hand. The predicted drift
 happened at the 3.1.0 bump (the Makefile moved, the device files did not);
 `tools/check-versions.sh` + the `versions.yml` workflow now fail CI in
-seconds when they disagree, so the drift can no longer land silently. Still
-open: actually deriving the strings from one source — a `post-build.sh` step
-that seds `OS_VERSION` into the overlay files, with `print-artifacts` as the
-model — which would retire the checklist in the script.
+seconds when they disagree, and `tools/set-version.sh` moves them all in one
+command (bump, CHANGELOG section, verify, commit, `Starling-*` tag, push).
+Still open, if wanted: deriving the strings from one source at build time —
+a `post-build.sh` step that seds `OS_VERSION` into the overlay files — which
+would retire the file list both scripts carry.
 
 ### 11. Host-compile half of the patch CI (was G3, compile half)
 
