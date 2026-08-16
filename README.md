@@ -20,10 +20,11 @@ this one covers only what Starling adds and how to install it.
 > ### ⚠️ Early days
 >
 > Starling 3.0.0 booted and ran on an Anbernic RG Nano — but on exactly one, and
-> not for long. **3.1.0 has not been on hardware at all yet**: everything it
-> changes was verified by compiling it, which cannot tell you what the screen
-> does. Keep a card with a known-good build on it, and read
-> [Recovery](#recovery) before you flash something rather than after.
+> not for long. **Nothing since has been on hardware at all.** 3.1.1 builds end
+> to end in CI, which tells you it compiles and links; it cannot tell you what
+> the screen does, and what changed most since 3.0.0 is exactly that. Keep a
+> card with a known-good build on it, and read [Recovery](#recovery) before you
+> flash something rather than after.
 
 ## This build is for the RG Nano and no other console
 
