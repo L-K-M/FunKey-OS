@@ -164,6 +164,19 @@ check_buildroot() {
     fi
 }
 
+# An earlier version of this script copied buildroot in. What it left behind --
+# a full buildroot with no .git, since .git is never copied -- is exactly what
+# the submodule rule refuses to clone into, and it outlives the copy below,
+# which leaves buildroot alone. So clear that one case out, once. A buildroot
+# the container cloned itself has its .git and is not touched.
+clear_stale_buildroot() {
+    in_container sh -c '
+        if [ -d buildroot ] && [ ! -e buildroot/.git ] && [ -n "$(ls -A buildroot)" ]; then
+            echo "Removing a buildroot left in the container without its .git"
+            rm -rf buildroot
+        fi' || die "could not clear the stale buildroot out of the container"
+}
+
 show_log() {
     if ! in_container test -f br.log; then
         echo "No br.log in the build tree yet."
@@ -221,6 +234,8 @@ KEEP="-path ./.git -prune \
 
 say "Copying the working tree into the container"
 
+clear_stale_buildroot
+
 # shellcheck disable=SC2086 -- KEEP is a find expression, deliberately split
 in_container sh -c "find . ${KEEP} -o ! -type d -print0 | xargs -0 -r rm -f --" \
     || die "clearing the previous copy out of the container failed"
@@ -236,7 +251,12 @@ list="$(mktemp)" || die "cannot create a temporary file"
 find . ${KEEP} -o ! -type d -print > "${list}" \
     || { rm -f "${list}"; die "listing the working tree failed"; }
 
-tar -cf - -T "${list}" | in_container tar -xf - -C "${SRC}"
+# --warning=... because macOS records xattrs (com.apple.provenance, and a
+# SCHILY.fflags per file) that GNU tar has no use for and announces one line at
+# a time, thousands of lines of it, burying whatever the build then says. The
+# receiving tar is always this container's GNU tar, so the option is safe here.
+tar -cf - -T "${list}" \
+    | in_container tar -xf - --warning=no-unknown-keyword -C "${SRC}"
 copied=$?
 rm -f "${list}"
 [ "${copied}" -eq 0 ] || die "copying the working tree in failed"
