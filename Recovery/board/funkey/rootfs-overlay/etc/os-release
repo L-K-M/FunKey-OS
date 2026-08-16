@@ -1,9 +1,9 @@
 NAME="Starling Recovery"
-VERSION="3.0.0 (Anbernic RG Nano)"
+VERSION="3.1.0 (Anbernic RG Nano)"
 ID=funkey-recovery
 ID_LIKE=buildroot
-PRETTY_NAME="Starling Recovery 3.0.0 — for the Anbernic RG Nano"
-VERSION_ID="3.0.0"
+PRETTY_NAME="Starling Recovery 3.1.0 — for the Anbernic RG Nano"
+VERSION_ID="3.1.0"
 HOME_URL="https://github.com/L-K-M/FunKey-OS-Starling"
 SUPPORT_URL="https://github.com/L-K-M/FunKey-OS-Starling/issues"
 BUG_REPORT_URL="https://github.com/L-K-M/FunKey-OS-Starling/issues"
