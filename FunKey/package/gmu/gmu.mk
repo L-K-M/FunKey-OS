@@ -8,7 +8,8 @@ GMU_VERSION = HEAD
 GMU_SITE_METHOD = git
 GMU_SITE = https://github.com/DrUm78/gmu.git
 GMU_LICENSE = GPL-2.0
-GMU_LICENSE_FILES = LICENSE
+# The gmu tree ships its GPLv2 text as COPYING; it has no file named LICENSE.
+GMU_LICENSE_FILES = COPYING
 
 GMU_DEPENDENCIES = sdl sdl_gfx sdl_image mpg123 tremor flac libmikmod wavpack host-squashfs
 

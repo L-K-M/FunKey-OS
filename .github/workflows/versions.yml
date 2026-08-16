@@ -1,0 +1,35 @@
+name: Version consistency
+
+# OS_VERSION in the Makefile names the release artifacts, but what a running
+# console reports comes from hand-kept copies: os-release, /etc/issue and
+# sw-versions on both partitions, and sw-description inside the update file.
+# tools/check-versions.sh asserts they all agree with the Makefile; this runs
+# it on every change, because the 3.0.0 -> 3.1.0 bump missed all of them and
+# nothing said so. Seconds of runner time against a drift that otherwise
+# surfaces on a device's recovery screen.
+on:
+  push:
+    branches: [ rg_nano, master ]
+  pull_request:
+    branches: [ rg_nano, master ]
+  workflow_dispatch:
+
+# The job only reads; give it the least token there is.
+permissions:
+  contents: read
+
+concurrency:
+  group: versions-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  check:
+    name: Version strings agree with the Makefile
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+
+    steps:
+    - uses: actions/checkout@v4
+
+    - name: Check every file that carries the OS version
+      run: sh tools/check-versions.sh

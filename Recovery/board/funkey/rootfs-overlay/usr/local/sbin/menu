@@ -137,7 +137,10 @@ menu_run () {
 		    for file in $(ls /mnt/FunKey-*.fwu); do
 			swupdate -i "${file}"
 			if [ $? -ne 0 ]; then
-			    notif set 0 display 10 "${message}...^         CORRUPTED^        UPDATE FILE"
+			    # "notif display" holds the message for its duration
+			    # before returning, like S60recovery's corrupted-file
+			    # notice, so it is read before the reboot replaces it.
+			    notif display 10 "${message}...^         CORRUPTED^        UPDATE FILE"
 			    rm -f "${file}"
 			    notif set 0 "^^^^^^^^         RESTARTING...^^^^^^^^"
 			    normal_mode

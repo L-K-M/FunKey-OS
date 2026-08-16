@@ -18,51 +18,14 @@ smoke-checked with the fast apply-check workflow first.
 
 ---
 
-## Status of implemented work (in flight, do not re-implement)
+## Status of implemented work
 
-All of these have open PRs on same-repo branches (so the GLM review workflow
-runs on them), verified to apply cleanly (standalone and stacked where files
-overlap). CI builds sit in `action_required`/`queued` pending maintainer
-approval, so treat the CI verdict as pending, not failed. If a PR is rejected,
-the analysis for it lives in `glm.md`/`kimi.md` and the patch itself in the PR
-branch.
-
-| What | Item | PR |
-| --- | --- | --- |
-| Subcollection leak on every Favorites visit; NULL-safe `Save()`; set-based narrowing/merge; power-loss-safe atomic favorites save | B1, B3, P1c, P1d, G1 | [#25](https://github.com/L-K-M/FunKey-OS-Starling/pull/25) |
-| Unfavorited game leaves the list on screen (narrowed views) | B2 | [#26](https://github.com/L-K-M/FunKey-OS-Starling/pull/26) |
-| Empty-Favorites hint + status-message fade | M2, V4 | [#27](https://github.com/L-K-M/FunKey-OS-Starling/pull/27) — fade render-timing bug found in second review, fixed by its author ("Ask for frames while a status message is up") |
-| Y/X no longer favorite menu entries (games only) | B6(a) | [#31](https://github.com/L-K-M/FunKey-OS-Starling/pull/31) — GLM-reviewed; `leaf` questions answered with source evidence; optional suggestion adopted: the guard now shows "Only games can be favorited" instead of failing silently |
-| Cache lowercase sort titles (sort-time allocations) | P2 | [#32](https://github.com/L-K-M/FunKey-OS-Starling/pull/32) |
-| Valid layout fallback in `settings.conf` | B5 | [#28](https://github.com/L-K-M/FunKey-OS-Starling/pull/28) — GLM-reviewed twice; all suggestions applied (provenance comment, no line-number pin) |
-| README native-build `cd` fix + full button map | B4, M7 | [#24](https://github.com/L-K-M/FunKey-OS-Starling/pull/24) — GLM-reviewed; suggestion applied; re-review clean |
-| Fast RetroFE patch-series CI apply-check | G3 (apply half) | [#29](https://github.com/L-K-M/FunKey-OS-Starling/pull/29) — GLM-reviewed twice; all applied (LC_ALL=C, staged stats, dispatch, read-only token, `:=`/`?=` parse, `patch(1)` mirroring apply-patches.sh); runs green on the runner |
-| gmu re-enabled against buildroot's FLAC/WavPack | M1 | [#30](https://github.com/L-K-M/FunKey-OS-Starling/pull/30) — GLM-reviewed twice; `Config.in` now selects all eight libraries (the review's structural catch: `*_DEPENDENCIES` enables nothing), plus `host-squashfs`; full-build CI verdict pending maintainer approval |
-| Drop ~4.4 MB of unreferenced files (splash_BAK/device_BAK/tmp/ico) + `rememberMenu` duplicate + `menu.txt` newline | K1 | [#41](https://github.com/L-K-M/FunKey-OS-Starling/pull/41) — GLM-reviewed, 0 actionable |
-| Favorite-toggle feedback via the kernel notification overlay (fbtft OSD) — kills the statusText/title overlap on device | K2 (V1 done properly) | [#42](https://github.com/L-K-M/FunKey-OS-Starling/pull/42) — GLM-reviewed 4 rounds, all points applied (v5); confirmatory re-review lost to the Z.ai outage |
-| Per-item owning system in the Favorites status bar ("NES" instead of "Favorites") | K3 | [#43](https://github.com/L-K-M/FunKey-OS-Starling/pull/43) — GLM-reviewed; leaf-guard + shared helper applied; re-review clean |
-| `share`: N-file `.fwu` glob fix + removal of the never-run `.swu` loop | K4 | [#44](https://github.com/L-K-M/FunKey-OS-Starling/pull/44) — GLM-reviewed 2×; .swu removal defended with upstream evidence |
-| Lighter toggle refresh: rebuild one slot instead of the whole wheel + statusMessageDirty_ render fix | K5 | [#45](https://github.com/L-K-M/FunKey-OS-Starling/pull/45) — GLM never landed (Z.ai API timeouts ×5); hand-verified |
-
-Closed as superseded (second review produced duplicates; the better version
-won): fork PRs #33–#40 → same-repo #41–#45; #35 (hint) → #27; #37 (leak) →
-#25; #38 (atomic save) → #25.
-
-**Patch numbering.** #25–#32 carry the 0006–0009 patch series (plus per-PR
-0006 singles); the second review's kept patches are numbered 0020–0022 to stay
-clear of them. Validated by application to the pinned tag in buildroot's
-filename order: the #25–#32 series (0006-cache-lowercase-titles →
-0009-power-loss-safe-favorites-save) applies cleanly in alphabetical order and
-the result compiles; #42/#43/#45's patches apply cleanly on master today but
-not on top of that series (their context is the pre-series text), so if the
-series lands first they need the small rebase noted in their bodies (#42
-rewrites `setStatusMessage()`, also edited by #27; #45 rewrites
-`togglePlaylist()`, also edited by #31, and touches `update()` near #27's fade
-block; #43 now shares `Item.cpp`/`Item.h` with #32's cache). Both trees are
-preserved locally by the second reviewer; the rebase is mechanical.
-
-If any of these PRs land, delete the row. If one is closed unmerged, move its
-item back into the backlog below and fold in whatever the review said.
+Everything the status table used to track has landed: PRs #24–#32 and
+#41–#45 are all merged into `master` and shipped as Starling 3.1.0 (the
+RetroFE patches now numbered 0001–0016 in apply order). Per this file's own
+rule — "if any of these PRs land, delete the row" — the table is gone; the
+review reasoning behind each change remains in `glm.md`/`kimi.md`, and the
+merge commits name the PRs.
 
 ---
 
@@ -202,9 +165,14 @@ was disabled.
 ### 10. Version strings from one place (was G2)
 
 `Makefile` (`OS_VERSION`), `etc/os-release` (five fields), `etc/sw-versions`,
-`etc/issue` all carry 3.0.0 by hand. A `post-build.sh` step that seds
-`OS_VERSION` into the overlay files removes the four-places-to-drift class of
-bug. Keep `print-artifacts` as the model: one source, everything else derived.
+`etc/issue` and `sw-description` are all kept by hand. The predicted drift
+happened at the 3.1.0 bump (the Makefile moved, the device files did not);
+`tools/check-versions.sh` + the `versions.yml` workflow now fail CI in
+seconds when they disagree, and `tools/set-version.sh` moves them all in one
+command (bump, CHANGELOG section, verify, commit, `Starling-*` tag, push).
+Still open, if wanted: deriving the strings from one source at build time —
+a `post-build.sh` step that seds `OS_VERSION` into the overlay files — which
+would retire the file list both scripts carry.
 
 ### 11. Host-compile half of the patch CI (was G3, compile half)
 
