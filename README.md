@@ -1,4 +1,4 @@
-[![Build](https://github.com/L-K-M/FunKey-OS-Starling/actions/workflows/build.yml/badge.svg?branch=master)](https://github.com/L-K-M/FunKey-OS-Starling/actions/workflows/build.yml?query=branch%3Amaster)
+[![Build](https://github.com/L-K-M/FunKey-OS/actions/workflows/build.yml/badge.svg?branch=master)](https://github.com/L-K-M/FunKey-OS/actions/workflows/build.yml?query=branch%3Amaster)
 
 # Starling 3.1.0
 
@@ -214,7 +214,7 @@ Only Docker is needed — the container brings its own toolchain and clones this
 repository itself.
 
 ```bash
-curl -O https://raw.githubusercontent.com/L-K-M/FunKey-OS-Starling/master/docker/Dockerfile
+curl -O https://raw.githubusercontent.com/L-K-M/FunKey-OS/master/docker/Dockerfile
 docker build --platform linux/amd64 -t starling .
 docker run --platform linux/amd64 --name starling starling
 docker cp starling:/home/funkey/FunKey-OS/images ./images
@@ -240,8 +240,8 @@ sudo apt install make binutils build-essential gcc g++ patch bzip2 perl cpio \
   subversion python3 python3-dev python3-distutils python3-setuptools \
   ca-certificates openssh-client expect locales sudo procps
 
-git clone https://github.com/L-K-M/FunKey-OS-Starling.git
-cd FunKey-OS-Starling
+git clone https://github.com/L-K-M/FunKey-OS.git
+cd FunKey-OS
 make sdk all
 ```
 

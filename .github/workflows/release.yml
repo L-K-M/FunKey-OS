@@ -152,7 +152,7 @@ jobs:
           | \`${fwu}\` | Firmware update. Copy it over USB to update in place, keeping games and saves. |
           | \`${sdk}\` | Cross-toolchain, needed only to build software for the console. |
 
-          See the [README](https://github.com/L-K-M/FunKey-OS-Starling#install) for how to install or update.
+          See the [README](https://github.com/${GITHUB_REPOSITORY}#install) for how to install or update.
           NOTES
 
           # Appended rather than interpolated into the heredoc: the changelog is

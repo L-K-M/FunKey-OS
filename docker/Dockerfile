@@ -7,7 +7,12 @@ FROM debian:bookworm-slim
 # Starling line for the Anbernic RG Nano, so a plain "docker build" produces an
 # RG Nano image with Favorites. Override to build another fork or branch --
 # but note a build for one console does not boot another.
-ARG FUNKEY_OS_REPO=https://github.com/L-K-M/FunKey-OS-Starling.git
+#
+# This URL must name the repository by its current name, not a former one:
+# GitHub redirects clones of renamed repositories, so the build would work,
+# but the origin check in docker.yml compares the clone's remote against
+# GITHUB_REPOSITORY verbatim and would fail on the stale name.
+ARG FUNKEY_OS_REPO=https://github.com/L-K-M/FunKey-OS.git
 ARG FUNKEY_OS_REF=master
 
 LABEL \
