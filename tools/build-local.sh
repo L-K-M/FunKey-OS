@@ -71,7 +71,16 @@ for arg in "$@"; do
     esac
 done
 
-[ -n "${targets}" ] || targets=" sdk all"
+# "all" (image + update), not CI's "sdk all". The two are independent targets:
+# nothing in all -> image/update -> fun depends on sdk. The OS build gets its
+# cross compiler by downloading the prebuilt one named in
+# BR2_TOOLCHAIN_EXTERNAL_URL; "make sdk" builds a *new* toolchain from source,
+# gcc and all, purely to publish as a release artifact for people writing
+# software for the console. CI runs it because CI publishes that artifact.
+#
+# Locally it is an hours-long emulated gcc bootstrap that produces nothing you
+# need to flash a card. Ask for it by name if you want it.
+[ -n "${targets}" ] || targets=" all"
 
 # ---------------------------------------------------------------- pre-flight
 
@@ -113,18 +122,34 @@ elif [ "$(docker container inspect -f '{{.State.Running}}' "${CONTAINER}")" != t
     docker start "${CONTAINER}" >/dev/null || die "could not start ${CONTAINER}"
 fi
 
+# -i because the working-tree copy below pipes a tar stream into this; without
+# it docker exec does not attach stdin and the receiving tar reads an empty
+# stream ("This does not look like a tar archive"). Harmless for the commands
+# that read nothing.
 in_container() {
-    docker exec -u funkey -w "${SRC}" "${CONTAINER}" "$@"
+    docker exec -i -u funkey -w "${SRC}" "${CONTAINER}" "$@"
 }
 
 show_log() {
-    if in_container test -f br.log; then
-        say "Last 60 lines of br.log (the buildroot log; the errors are here)"
-        in_container tail -n 60 br.log
-        docker cp "${CONTAINER}:${SRC}/br.log" "${root}/br.log" >/dev/null 2>&1 \
-            && echo "" && echo "Full log copied to ${root}/br.log"
-    else
+    if ! in_container test -f br.log; then
         echo "No br.log in the build tree yet."
+        return
+    fi
+
+    # A buildroot log ends in a cascade: every enclosing make reports that its
+    # child failed, so the last lines name the recursion, not the cause. The
+    # cause sits just above the *first* "make[n]: ***", which is what this
+    # prints -- the tail is shown too, but second, and only as orientation.
+    say "First failure in br.log, with the 30 lines before it"
+    in_container sh -c \
+        "grep -n -m1 -B30 'make\\[[0-9]*\\]: \\*\\*\\*' br.log || tail -n 40 br.log"
+
+    say "End of br.log"
+    in_container tail -n 15 br.log
+
+    if docker cp "${CONTAINER}:${SRC}/br.log" "${root}/br.log" >/dev/null 2>&1; then
+        echo ""
+        echo "Full log: ${root}/br.log"
     fi
 }
 
