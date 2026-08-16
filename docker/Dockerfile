@@ -8,11 +8,12 @@ FROM debian:bookworm-slim
 # RG Nano image with Favorites. Override to build another fork or branch --
 # but note a build for one console does not boot another.
 #
-# This URL must name the repository by its current name, not a former one:
-# GitHub redirects clones of renamed repositories, so the build would work,
-# but the origin check in docker.yml compares the clone's remote against
-# GITHUB_REPOSITORY verbatim and would fail on the stale name.
-ARG FUNKEY_OS_REPO=https://github.com/L-K-M/FunKey-OS.git
+# The URL must use the repository's current canonical name. Older names
+# (L-K-M/FunKey-OS, L-K-M/FunKey-OS-Favorites) still clone through GitHub's
+# redirects, but docker.yml compares the clone's origin against
+# GITHUB_REPOSITORY verbatim, so a non-canonical name fails that check.
+# If the repository is ever renamed, update this line.
+ARG FUNKEY_OS_REPO=https://github.com/L-K-M/FunKey-OS-Starling.git
 ARG FUNKEY_OS_REF=master
 
 LABEL \
