@@ -1,9 +1,9 @@
 NAME="Starling"
-VERSION="3.1.0 (Anbernic RG Nano)"
+VERSION="3.1.1 (Anbernic RG Nano)"
 ID=funkey
 ID_LIKE=buildroot
-PRETTY_NAME="Starling 3.1.0 — FunKey OS with Favorites, for the Anbernic RG Nano"
-VERSION_ID="3.1.0"
+PRETTY_NAME="Starling 3.1.1 — FunKey OS with Favorites, for the Anbernic RG Nano"
+VERSION_ID="3.1.1"
 HOME_URL="https://github.com/L-K-M/FunKey-OS-Starling"
 SUPPORT_URL="https://github.com/L-K-M/FunKey-OS-Starling/issues"
 BUG_REPORT_URL="https://github.com/L-K-M/FunKey-OS-Starling/issues"

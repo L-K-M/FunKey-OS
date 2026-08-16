@@ -3,6 +3,41 @@
 Release notes read the section matching their tag out of this file, so the
 headings are `## Starling-X.Y.Z` — the tag name, exactly.
 
+## Starling-3.1.1
+
+**3.1.0 was tagged but never published, so this is the first release since
+3.0.0 — its files carry all of the Favorites work listed under 3.1.0 below, as
+well as the fixes here.**
+
+Everything in this release came out of reviewing 3.1.0 rather than running it.
+
+- **The console reports the version it is actually running.** 3.1.0 moved
+  `OS_VERSION` and the artifact names but left seven files behind at 3.0.0:
+  `os-release`, `/etc/issue` and `sw-versions` on both partitions, and
+  `sw-description` inside the update file. A console updated to 3.1.0 would have
+  gone on reporting 3.0.0 from the recovery INFO screen — the screen you read
+  while working out whether an update landed.
+- **The recovery menu shows its corrupted-update notice.** It passed five
+  arguments to a helper whose `set` form takes three, so the helper printed its
+  usage instead and the one message explaining why the `.fwu` had just been
+  deleted never reached the screen before the reboot. (Predates the fork.)
+- **A failed favorites save no longer leaves its temp file behind** on the share
+  partition, where it was visible to anyone browsing the card over USB. The
+  saved list was never at risk; this is debris.
+- **New Favorites background** for the default theme.
+
+Nothing above changes what Favorites does — for that, read the 3.1.0 section.
+
+Also, not visible on the console: the version strings are now checked against
+the Makefile by CI, so they cannot drift apart again; `tools/set-version.sh`
+moves all of them at once and cuts the tag; and a full OS build is no longer
+started for changes that cannot affect it.
+
+**Still not booted on hardware.** The tree builds end to end in CI — two hours,
+green, including the re-enabled gmu music player — but a build completing is not
+the same as a console starting, and the most visible change in 3.1.0 is one only
+a device can show. Keep a card with a known-good build on it.
+
 ## Starling-3.1.0
 
 Favorites was written and merged before any of it had run on a console. This
