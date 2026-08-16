@@ -103,7 +103,8 @@ old="$(sed -nE 's/^OS_VERSION[[:space:]]*(:|\?)?=[[:space:]]*//p' Makefile \
 [ -n "${old}" ] || die "could not read OS_VERSION from the Makefile"
 
 git rev-parse -q --verify "refs/tags/${tag}" >/dev/null \
-    && die "tag ${tag} already exists locally"
+    && die "tag ${tag} already exists locally -- delete it to re-cut this
+       version (git tag -d ${tag}), or bump to the next one"
 if [ "${push}" -eq 1 ]; then
     remote_tag="$(git ls-remote --tags origin "refs/tags/${tag}")" \
         || die "could not check origin for ${tag} -- offline? (--no-push skips this)"
@@ -206,14 +207,25 @@ else
     git commit -m "Starling ${new}" || die "git commit failed"
 fi
 
+# Push the branch before tagging, not after. The branch push is the step that
+# fails in ordinary use -- master moves while the release notes are being
+# written -- and a tag created before it would survive the failure, so the
+# re-run needed to recover would stop at "tag already exists locally" having
+# done nothing else. Tagging after means a failed branch push leaves nothing
+# to clean up.
+if [ "${push}" -eq 1 ]; then
+    git push -u origin "${branch}" \
+        || die "pushing ${branch} failed -- nothing was tagged; pull, re-run"
+fi
+
 git tag -a "${tag}" -m "Starling ${new}" || die "git tag failed"
 echo "Tagged $(git rev-parse --short HEAD) as ${tag}."
 
 # --------------------------------------------------------------------- push
 
 if [ "${push}" -eq 1 ]; then
-    git push -u origin "${branch}" || die "pushing ${branch} failed"
-    git push origin "${tag}"       || die "pushing ${tag} failed"
+    git push origin "${tag}" || die "pushing ${tag} failed -- the tag exists
+       locally; retry with: git push origin ${tag}"
     echo "Pushed ${branch} and ${tag}."
 else
     echo "Not pushed (--no-push). When ready:"
