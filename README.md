@@ -227,6 +227,14 @@ Any Makefile target works: `tools/build-local.sh image update`. Add
 `--shell` for a shell in the build tree, `--log` to reread the last failure,
 `--reset` to discard the build state.
 
+> **Do not run `make sdk` to get an image.** `sdk` and `all` are independent:
+> the OS build downloads its cross compiler (`BR2_TOOLCHAIN_EXTERNAL_URL`),
+> while `make sdk` builds a *new* toolchain from source to publish as a release
+> artifact for people writing software for the console. CI runs `make sdk all`
+> because it publishes that artifact. Locally `sdk` is an hours-long gcc
+> bootstrap — emulated, on an Apple Silicon Mac — that produces nothing you need
+> to flash a card.
+
 > **Changing a patch does not trigger a rebuild.** Buildroot applies
 > `FunKey/package/*/…patch` once, at extract time, so editing one and
 > rebuilding silently keeps the old binary. Force it:
