@@ -107,6 +107,25 @@ init_frontend() {
 		    wait $!
 		    pid erase
 
+		    # A frontend that exits has just written the only account of
+		    # why, and written it to tmpfs: /usr/games/log.txt points at
+		    # /tmp/retrofe.log, which the next power-on erases. That is
+		    # precisely when someone wants to read it -- a frontend that
+		    # will not start leaves this loop respawning it forever, with
+		    # no way onto the console to look. Keep a copy where it
+		    # survives a reboot and can be read over USB.
+		    #
+		    # Copied, not redirected: an open file on /mnt would hold the
+		    # share partition busy, and unmounting it is how USB sharing
+		    # works. And only the first exit of each boot -- a frontend
+		    # that dies immediately comes back through here twice a
+		    # second, and rewriting the card at that rate is worse than
+		    # useless.
+		    if [ -s /tmp/retrofe.log ] && [ ! -f /tmp/.frontend_log_kept ]; then
+			cp /tmp/retrofe.log /mnt/frontend-last-exit.log 2>/dev/null
+			touch /tmp/.frontend_log_kept
+		    fi
+
 		    # In case retrofe/opkrun quits with errors, clear graphic VT
 		    termfix_all
 
