@@ -220,6 +220,33 @@ jobserver_failed() {
     in_container grep -q 'write jobserver' br.log 2>/dev/null
 }
 
+# A buildroot tree is around 12 GB and a first build approaches that slowly,
+# over hours, so running out of room is a failure that arrives late and takes
+# the whole run with it. Check before starting rather than after.
+#
+# The space belongs to the Docker VM's disk, shared by every image, container
+# and volume on the machine -- not to this container, and not to the image, so
+# nothing in this repository can enlarge it. Point at the dial that can.
+check_disk() {
+    avail_kb="$(in_container df -Pk . 2>/dev/null | awk 'NR==2 {print $4}')"
+
+    case "${avail_kb}" in
+        ''|*[!0-9]*) return 0 ;;   # no usable answer; do not invent a warning
+    esac
+
+    [ "${avail_kb}" -ge 10485760 ] && return 0   # 10 GiB
+
+    echo ""
+    echo "NOTE: $((avail_kb / 1048576)) GB free where the build writes. A full"
+    echo "      build wants about 12, and runs out late rather than early."
+    echo "        Docker Desktop -> Settings -> Resources -> Virtual disk limit"
+    echo "          (the disk file is sparse: a higher limit costs nothing"
+    echo "           until it is used)"
+    echo "        docker builder prune     reclaim build cache"
+    echo "        docker system prune      reclaim stopped containers, unused images"
+    echo "        tools/build-local.sh --reset   drop this build's state, ~12 GB"
+}
+
 show_log() {
     if ! in_container test -f br.log; then
         echo "No br.log in the build tree yet."
@@ -342,6 +369,7 @@ rm -f "${list}"
 # ----------------------------------------------------------------- the build
 
 check_buildroot
+check_disk
 
 # So that a build dying before buildroot starts cannot be read through the
 # previous run's log.
