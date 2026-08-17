@@ -1,0 +1,485 @@
+diff --git a/RetroFE/Source/Graphics/Component/ReloadableScrollingText.cpp b/RetroFE/Source/Graphics/Component/ReloadableScrollingText.cpp
+index 5b4f555..1e47ba4 100755
+--- a/RetroFE/Source/Graphics/Component/ReloadableScrollingText.cpp
++++ b/RetroFE/Source/Graphics/Component/ReloadableScrollingText.cpp
+@@ -433,10 +433,17 @@ void ReloadableScrollingText::reloadTexture( bool previousItem )
+ 	{
+ 	    curLineWidth = 0;
+ 
+-	    for (unsigned int i = 0; i < text_[l].size( ); ++i)
++	    for (size_t i = 0; i < text_[l].size( ); )
+ 	    {
++	    	/* One code point per pass, not one byte: the string is UTF-8.
++	    	 * A character outside ASCII spans several bytes, none of which is
++	    	 * a glyph on its own. */
++	    	size_t next = i;
++	    	unsigned int codepoint = Font::nextCodepoint( text_[l], next );
++	    	i = next;
++
+ 	        Font::GlyphInfo glyph;
+-		if (font->getRect( text_[l][i], glyph ))
++		if (font->getRect( codepoint, glyph ))
+ 		{
+ 		  if ( glyph.minX < 0 )
+ 		  {
+@@ -549,7 +556,8 @@ void ReloadableScrollingText::draw( )
+         else                   // If not, use the general font settings
+           font = fontInst_;
+ 
+-        SDL_Surface *t = font->getTexture( );
++        /* Each glyph is blitted from its own surface now; a string may draw
++         * from the packed atlas and from stand-alone glyph surfaces both. */
+ 
+         float imageHeight = 0;
+         float imageWidth     = 0;
+@@ -583,10 +591,16 @@ void ReloadableScrollingText::draw( )
+         // Compute image width that fits inside the the container width to get the origin position
+         if (direction_ == "horizontal")
+         {
+-	    for ( unsigned int i = 0; i < text_[0].size( ); ++i )
++	    for ( size_t i = 0; i < text_[0].size( ); )
+ 	    {
++		/* One code point per pass, not one byte: the string is UTF-8.
++		 * A character outside ASCII spans several bytes, none of which is
++		 * a glyph on its own. */
++		size_t next = i;
++		unsigned int codepoint = Font::nextCodepoint( text_[0], next );
++		i = next;
+ 	        Font::GlyphInfo glyph;
+-		if ( font->getRect( text_[0][i], glyph ) )
++		if ( font->getRect( codepoint, glyph ) )
+ 		{
+ 		    if ( glyph.minX < 0 )
+ 		    {
+@@ -649,8 +663,14 @@ void ReloadableScrollingText::draw( )
+ 
+             for (unsigned int l = 0; l < text_.size( ); ++l)
+             {
+-                for (unsigned int i = 0; i < text_[l].size( ); ++i)
++                for (size_t i = 0; i < text_[l].size( ); )
+                 {
++                    /* One code point per pass, not one byte: the string is UTF-8.
++                     * A character outside ASCII spans several bytes, none of which is
++                     * a glyph on its own. */
++                    size_t next = i;
++                    unsigned int codepoint = Font::nextCodepoint( text_[l], next );
++                    i = next;
+ 
+                     // Do not print outside the box
+                     if (rect.x >= (static_cast<int>( xOrigin ) + imageMaxWidth))
+@@ -663,7 +683,7 @@ void ReloadableScrollingText::draw( )
+                     //printf("text_[%d][%d] = %c, 0x%02X\n", l, i, text_[l][i], text_[l][i]);
+ 
+                     //if (font->getRect( text_[l][i], glyph) && glyph.rect.h > 0)
+-                    if (font->getRect( text_[l][i], glyph))
++                    if (font->getRect( codepoint, glyph) && glyph.surface)
+                     {
+                         SDL_Rect charRect = glyph.rect;
+                         rect.h  = static_cast<int>( charRect.h * scale * scaleY_ );
+@@ -696,7 +716,7 @@ void ReloadableScrollingText::draw( )
+                             }
+                             if (rect.w > 0)
+                             {
+-                                SDL::renderCopy(t, baseViewInfo.Alpha, &charRect, &rect, baseViewInfo);
++                                SDL::renderCopy(glyph.surface, baseViewInfo.Alpha, &charRect, &rect, baseViewInfo);
+                                 rect.x += rect.w;
+                             }
+                             else if ((rect.x + static_cast<int>( char_width * scale * scaleX_ )) >= (static_cast<int>( xOrigin ) + imageMaxWidth))
+@@ -723,10 +743,17 @@ void ReloadableScrollingText::draw( )
+ 		{
+ 		    curLineWidth = 0;
+ 
+-		    for (unsigned int i = 0; i < text_[l].size( ); ++i)
++		    for (size_t i = 0; i < text_[l].size( ); )
+ 		    {
++		    	/* One code point per pass, not one byte: the string is UTF-8.
++		    	 * A character outside ASCII spans several bytes, none of which is
++		    	 * a glyph on its own. */
++		    	size_t next = i;
++		    	unsigned int codepoint = Font::nextCodepoint( text_[l], next );
++		    	i = next;
++
+ 		        Font::GlyphInfo glyph;
+-			if (font->getRect( text_[l][i], glyph ))
++			if (font->getRect( codepoint, glyph ))
+ 			{
+ 			    if ( glyph.minX < 0 )
+ 			    {
+@@ -796,10 +823,17 @@ void ReloadableScrollingText::draw( )
+ 
+                     // Determine word image width
+                     unsigned int wordWidth = 0;
+-                    for (unsigned int i = 0; i < word.size( ); ++i)
++                    for (size_t i = 0; i < word.size( ); )
+                     {
++                        /* One code point per pass, not one byte: the string is UTF-8.
++                         * A character outside ASCII spans several bytes, none of which is
++                         * a glyph on its own. */
++                        size_t next = i;
++                        unsigned int codepoint = Font::nextCodepoint( word, next );
++                        i = next;
++
+                         Font::GlyphInfo glyph;
+-                        if (font->getRect( word[i], glyph) )
++                        if (font->getRect( codepoint, glyph) )
+                         {
+                             wordWidth += static_cast<int>( glyph.advance * scale * scaleX_ );
+                         }
+@@ -889,12 +923,19 @@ void ReloadableScrollingText::draw( )
+                 while (iss >> word)
+                 {
+ 
+-                    for (unsigned int i = 0; i < word.size( ); ++i)
++                    for (size_t i = 0; i < word.size( ); )
+                     {
++                        /* One code point per pass, not one byte: the string is UTF-8.
++                         * A character outside ASCII spans several bytes, none of which is
++                         * a glyph on its own. */
++                        size_t next = i;
++                        unsigned int codepoint = Font::nextCodepoint( word, next );
++                        i = next;
++
+                         Font::GlyphInfo glyph;
+ 
+-                        //if (font->getRect( word[i], glyph) && glyph.rect.h > 0)
+-                        if (font->getRect( word[i], glyph))
++                        //if (font->getRect( codepoint, glyph) && glyph.rect.h > 0)
++                        if (font->getRect( codepoint, glyph) && glyph.surface)
+                         {
+                             SDL_Rect charRect = glyph.rect;
+                             rect.h   = static_cast<int>( charRect.h * scale * scaleY_ );
+@@ -921,7 +962,7 @@ void ReloadableScrollingText::draw( )
+                                 }
+                                 if (rect.h > 0)
+                                 {
+-                                    SDL::renderCopy(t, baseViewInfo.Alpha, &charRect, &rect, baseViewInfo);
++                                    SDL::renderCopy(glyph.surface, baseViewInfo.Alpha, &charRect, &rect, baseViewInfo);
+                                 }
+                             }
+                             rect.x += static_cast<int>( glyph.advance * scale * scaleX_ );
+diff --git a/RetroFE/Source/Graphics/Component/Text.cpp b/RetroFE/Source/Graphics/Component/Text.cpp
+index afb7b69..6cbe0db 100755
+--- a/RetroFE/Source/Graphics/Component/Text.cpp
++++ b/RetroFE/Source/Graphics/Component/Text.cpp
+@@ -75,8 +75,9 @@ void Text::draw( )
+     else                     // If not, use the general font settings
+       font = fontInst_;
+ 
+-    //SDL_Texture *t = font->getTexture( );
+-    SDL_Surface *t = font->getTexture( );
++    /* No single surface for the whole string any more: a glyph outside the
++     * packed ASCII atlas carries its own, so each one is blitted from
++     * glyph.surface. */
+ 
+     float imageHeight = 0;
+     float imageWidth = 0;
+@@ -99,13 +100,18 @@ void Text::draw( )
+     /*printf("\n");
+     printf("imageMaxWidth=%f, imageHeight=%f, baseViewInfo.FontSize=%f,scale=%f\n", imageMaxWidth, imageHeight, baseViewInfo.FontSize, scale);
+ */
+-    unsigned int textIndexMax = 0;
++    /* A byte offset one past the last glyph that fits, not a character count:
++     * textData_ is UTF-8 and one character may be up to four bytes. */
++    size_t textIndexMax = 0;
+ 
+     // determine image width
+-    for ( unsigned int i = 0; i < textData_.size( ); ++i )
++    for ( size_t i = 0; i < textData_.size( ); )
+     {
++        size_t next = i;
++        unsigned int codepoint = Font::nextCodepoint( textData_, next );
++
+         Font::GlyphInfo glyph;
+-        if ( font->getRect( textData_[i], glyph ) )
++        if ( font->getRect( codepoint, glyph ) )
+         {
+             SDL_Rect charRect = glyph.rect;
+             //charRect.w  = static_cast<int>( glyph.advance );
+@@ -121,7 +127,7 @@ void Text::draw( )
+                 break;
+             }
+ 
+-            textIndexMax = i;
++            textIndexMax = next;
+             imageWidth  += charRect.w;
+ 
+             /*printf("textData_[%d]=%c, glyph.advance= %f - %d\n", i, textData_[i], glyph.advance, glyph.advance);
+@@ -132,6 +138,8 @@ void Text::draw( )
+ 	      ss << "Could not find Glyph info for char: " << textData_[i];
+ 	      Logger::write(Logger::ZONE_WARNING, "Text", ss.str());*/
+         }
++
++        i = next;
+     }
+ 
+     float oldWidth       = baseViewInfo.Width;
+@@ -158,12 +166,16 @@ void Text::draw( )
+     SDL_Rect rect;
+     rect.x = static_cast<int>( xOrigin );
+ 
+-    for ( unsigned int i = 0; i <= textIndexMax; ++i )
++    for ( size_t i = 0; i < textIndexMax; )
+     {
++        size_t next = i;
++        unsigned int codepoint = Font::nextCodepoint( textData_, next );
++        i = next;
++
+         Font::GlyphInfo glyph;
+ 
+         //if ( font->getRect(textData_[i], glyph) && glyph.rect.h > 0 ) 	// Not working in SDL1.2 because glyph.rect.h = 0 for spaces
+-        if ( font->getRect(textData_[i], glyph))
++        if ( font->getRect(codepoint, glyph) && glyph.surface)
+         {
+             SDL_Rect charRect = glyph.rect;
+             float h = static_cast<float>( charRect.h * scale );
+@@ -184,7 +196,7 @@ void Text::draw( )
+             /*printf("font->getAscent( ) = %d, glyph.maxY : %d\n", font->getAscent( ), glyph.maxY );*/
+             rect.y += static_cast<int>( (font->getAscent( ) - glyph.maxY)*scale );
+ 
+-            SDL::renderCopy( t, baseViewInfo.Alpha, &charRect, &rect, baseViewInfo );
++            SDL::renderCopy( glyph.surface, baseViewInfo.Alpha, &charRect, &rect, baseViewInfo );
+ 
+             rect.x += rect.w;
+         }
+diff --git a/RetroFE/Source/Graphics/Font.cpp b/RetroFE/Source/Graphics/Font.cpp
+index 2e078e8..dae51e1 100755
+--- a/RetroFE/Source/Graphics/Font.cpp
++++ b/RetroFE/Source/Graphics/Font.cpp
+@@ -22,8 +22,16 @@
+ #include <cstdio>
+ #include <cstring>
+ 
++/* The face consulted for code points the layout font does not carry. Same
++ * file gmenu2x falls back to, and installed by the same package. Absent is
++ * not an error: it only means non-Latin text will not draw. */
++static const char *FALLBACK_FONT_PATH =
++        "/usr/share/fonts/truetype/droid/DroidSansFallbackFull.ttf";
++
+ Font::Font(std::string fontPath, int fontSize, SDL_Color color)
+     : texture(NULL)
++    , primaryFont_(NULL)
++    , fallbackFont_(NULL)
+     , fontPath_(fontPath)
+     , fontSize_(fontSize)
+     , color_(color)
+@@ -48,10 +56,104 @@ int Font::getAscent()
+ {
+     return ascent;
+ }
++unsigned int Font::nextCodepoint(const std::string &text, size_t &index)
++{
++    unsigned char lead = static_cast<unsigned char>(text[index]);
++    size_t length;
++    unsigned int codepoint;
++
++    if(lead < 0x80)      { ++index; return lead; }
++    else if((lead & 0xE0) == 0xC0) { length = 2; codepoint = lead & 0x1F; }
++    else if((lead & 0xF0) == 0xE0) { length = 3; codepoint = lead & 0x0F; }
++    else if((lead & 0xF8) == 0xF0) { length = 4; codepoint = lead & 0x07; }
++    else                 { ++index; return lead; }
++
++    if(index + length > text.size())
++    {
++        ++index;
++        return lead;
++    }
++
++    for(size_t i = 1; i < length; ++i)
++    {
++        unsigned char cont = static_cast<unsigned char>(text[index + i]);
++        if((cont & 0xC0) != 0x80)
++        {
++            ++index;
++            return lead;
++        }
++        codepoint = (codepoint << 6) | (cont & 0x3F);
++    }
++
++    index += length;
++    return codepoint;
++}
++
++bool Font::addGlyph(unsigned int charCode)
++{
++    /* TTF_RenderGlyph_Blended and TTF_GlyphIsProvided are UCS-2, so this
++     * reaches the Basic Multilingual Plane and no further. That covers
++     * Chinese, Japanese, Korean, Cyrillic and Greek; it leaves out emoji and
++     * the rarer CJK extensions, which no layout here asks for. */
++    if(charCode > 0xFFFF)
++    {
++        return false;
++    }
++
++    TTF_Font *face = NULL;
++    if(primaryFont_ && TTF_GlyphIsProvided(primaryFont_, (Uint16)charCode))
++    {
++        face = primaryFont_;
++    }
++    else if(fallbackFont_ && TTF_GlyphIsProvided(fallbackFont_, (Uint16)charCode))
++    {
++        face = fallbackFont_;
++    }
++
++    if(!face)
++    {
++        return false;
++    }
++
++    GlyphInfoBuild *info = new GlyphInfoBuild;
++    memset(info, 0, sizeof(GlyphInfoBuild));
++
++    info->surface = TTF_RenderGlyph_Blended(face, (Uint16)charCode, color_);
++    if(!info->surface)
++    {
++        delete info;
++        return false;
++    }
++
++    TTF_GlyphMetrics(face, (Uint16)charCode,
++            &info->glyph.minX, &info->glyph.maxX,
++            &info->glyph.minY, &info->glyph.maxY,
++            &info->glyph.advance);
++
++    /* Its own surface rather than a slot in the atlas: the atlas is packed and
++     * blitted once at initialize(), and growing it later would move every
++     * glyph already in it. */
++    info->glyph.rect.x = 0;
++    info->glyph.rect.y = 0;
++    info->glyph.rect.w = info->surface->w;
++    info->glyph.rect.h = info->surface->h;
++    info->glyph.surface = info->surface;
++    SDL_SetAlpha(info->surface, 0, SDL_ALPHA_OPAQUE);
++
++    atlas[charCode] = info;
++
++    return true;
++}
++
+ bool Font::getRect(unsigned int charCode, GlyphInfo &glyph)
+ {
+     std::map<unsigned int, GlyphInfoBuild *>::iterator it = atlas.find(charCode);
+ 
++    if(it == atlas.end() && addGlyph(charCode))
++    {
++        it = atlas.find(charCode);
++    }
++
+     if(it != atlas.end())
+     {
+         GlyphInfoBuild *info = it->second;
+@@ -67,6 +169,15 @@ bool Font::getRect(unsigned int charCode, GlyphInfo &glyph)
+ bool Font::initialize()
+ {
+     TTF_Font *font = TTF_OpenFont(fontPath_.c_str(), fontSize_);
++    primaryFont_ = font;
++
++    fallbackFont_ = TTF_OpenFont(FALLBACK_FONT_PATH, fontSize_);
++    if (!fallbackFont_)
++    {
++        Logger::write(Logger::ZONE_INFO, "FontCache",
++                "No fallback font at " + std::string(FALLBACK_FONT_PATH) +
++                "; text outside this font's own coverage will not draw");
++    }
+ 
+     if (!font)
+     {
+@@ -156,6 +267,7 @@ bool Font::initialize()
+         //SDL_gfxBlitRGBA (info->surface, NULL, texture, &info->glyph.rect);
+         SDL_FreeSurface(info->surface);
+         info->surface = NULL;
++        info->glyph.surface = texture;
+     }
+ 
+     /*SDL_LockMutex(SDL::getMutex());
+@@ -164,7 +276,8 @@ bool Font::initialize()
+     SDL_FreeSurface(atlasSurface);
+     SDL_UnlockMutex(SDL::getMutex());*/
+ 
+-    TTF_CloseFont(font);
++    /* Deliberately still open -- addGlyph renders from it. Closed in
++     * deInitialize with the fallback. */
+ 
+     return true;
+ }
+@@ -185,11 +298,28 @@ void Font::deInitialize()
+     std::map<unsigned int, GlyphInfoBuild *>::iterator atlasIt = atlas.begin();
+     while(atlasIt != atlas.end())
+     {
++        /* Glyphs added after initialize() own their surface; the ones packed
++         * into the atlas had theirs freed when it was built. */
++        if(atlasIt->second->surface)
++        {
++            SDL_FreeSurface(atlasIt->second->surface);
++            atlasIt->second->surface = NULL;
++        }
+         delete atlasIt->second;
+         atlas.erase(atlasIt);
+         atlasIt = atlas.begin();
+     }
+ 
++    if(primaryFont_)
++    {
++        TTF_CloseFont(primaryFont_);
++        primaryFont_ = NULL;
++    }
++    if(fallbackFont_)
++    {
++        TTF_CloseFont(fallbackFont_);
++        fallbackFont_ = NULL;
++    }
+ }
+ 
+ 
+diff --git a/RetroFE/Source/Graphics/Font.h b/RetroFE/Source/Graphics/Font.h
+index cb4951f..5e37d7c 100755
+--- a/RetroFE/Source/Graphics/Font.h
++++ b/RetroFE/Source/Graphics/Font.h
+@@ -16,6 +16,7 @@
+ #pragma once
+ 
+ #include <SDL/SDL.h>
++#include <SDL/SDL_ttf.h>
+ #include <map>
+ #include <string>
+ 
+@@ -30,6 +31,10 @@ public:
+         int maxY;
+         int advance;
+         SDL_Rect rect;
++        /* Which surface rect indexes into. The ASCII glyphs all live in the
++         * one packed atlas; anything above it is rendered on demand and owns
++         * its own surface, so a caller cannot assume getTexture(). */
++        SDL_Surface *surface;
+     };
+ 
+     Font(std::string fontPath, int fontSize, SDL_Color color);
+@@ -39,6 +44,11 @@ public:
+     //SDL_Texture *getTexture();
+     SDL_Surface *getTexture();
+     bool getRect(unsigned int charCode, GlyphInfo &glyph);
++    /* Reads one UTF-8 encoded code point starting at index and leaves index on
++     * the first byte of the next one. Malformed input yields the raw byte, so
++     * anything that is not valid UTF-8 degrades to the byte-at-a-time
++     * behaviour this replaced rather than derailing the rest of the string. */
++    static unsigned int nextCodepoint(const std::string &text, size_t &index);
+     int getHeight();
+     int getAscent();
+ 
+@@ -49,8 +59,17 @@ private:
+         SDL_Surface *surface;
+     };
+ 
++    /* Renders charCode into its own surface and files it in the atlas map.
++     * Used for everything the packed ASCII atlas does not already hold. */
++    bool addGlyph(unsigned int charCode);
++
+     //SDL_Texture *texture;
+     SDL_Surface *texture;
++    /* Both kept open past initialize() so glyphs can still be rendered on
++     * demand. fallbackFont_ is whatever covers the code points the layout's
++     * own font does not, and is allowed to be NULL. */
++    TTF_Font *primaryFont_;
++    TTF_Font *fallbackFont_;
+     int height;
+     int ascent;
+     std::map<unsigned int, GlyphInfoBuild *> atlas;
