@@ -102,9 +102,32 @@ define PICOARCH_BUILD_CMDS
 	# counts as defined. Without it the C sources compile for ARM, the C++
 	# sources compile for the host, and the link fails on "file in wrong
 	# format" after everything has already been built.
+	#
+	# The parallelism goes here, on the cores as a whole, and PROCS= takes it
+	# back out of each core's own build -- picoarch passes every core's make
+	# a -j4 of its own. That is not a tuning preference.
+	#
+	# Several cores link with -flto, and gcc's lto-wrapper parallelises an
+	# LTO link by writing a makefile and running make on it -- but only when
+	# it finds a job server advertised in MAKEFLAGS. A make handed -j on its
+	# own command line resets job server mode: it creates one, advertises it
+	# to everything it runs, and closes the pipe for every recipe line that
+	# is not itself a make. A link is such a line, so lto-wrapper's make
+	# inherits a job server that is not there and dies on it:
+	#
+	#     make: *** write jobserver: Bad file descriptor.  Stop.
+	#     lto-wrapper: fatal error: make returned 2 exit status
+	#     ld: error: lto-wrapper failed
+	#
+	# picodrive fails exactly this way, every time. A make with no -j of its
+	# own does not republish the stale advertisement it inherited, it strips
+	# it -- which leaves lto-wrapper nothing to find and the LTO link runs in
+	# one process. So build four cores at once rather than four files of one
+	# core at once: the same jobs, and the level that breaks is gone.
 	(cd $(@D); \
-	make cores platform=funkey-s \
+	make cores -j$(PARALLEL_JOBS) platform=funkey-s \
 	CORES='$(PICOARCH_CORES)' \
+	PROCS= \
 	CROSS_COMPILE=$(TARGET_CROSS) \
 	CC=$(TARGET_CROSS)gcc \
 	CXX=$(TARGET_CROSS)g++ \
