@@ -294,6 +294,17 @@ clear_stale_buildroot
 in_container sh -c "find . ${KEEP} -o ! -type d -print0 | xargs -0 -r rm -f --" \
     || die "clearing the previous copy out of the container failed"
 
+# Buildroot copies the rootfs overlay into the target directory by adding to
+# it, never by removing, so a file that has stopped being copied in is still
+# in the image built from that directory. One that an earlier run of this
+# script put there therefore outlives the fix for it, and only a build from
+# scratch -- hours -- would clear it. Take these out directly instead: no
+# package installs a file whose name begins with "._" on a Linux target, so
+# anything named that came from a macOS working tree by way of the copy below.
+in_container sh -c \
+    'find FunKey/output/target Recovery/output/target SDK/output/target \
+        -name "._*" -type f -delete 2>/dev/null; true'
+
 list="$(mktemp)" || die "cannot create a temporary file"
 
 # Directories are left out of the list deliberately. tar creates the ones it
@@ -301,15 +312,28 @@ list="$(mktemp)" || die "cannot create a temporary file"
 # into -- so the pruning above holds without --no-recursion, which GNU tar and
 # the bsdtar on macOS do not spell the same way. Names go one per line, which
 # is how both read -T, and several hundred of these have spaces in them.
+#
+# ._* and .DS_Store are macOS's, and they are dropped here rather than pruned
+# in KEEP so that the sweep above still deletes any an earlier run left in the
+# container. They are not build inputs, and one of them is not harmless: an
+# AppleDouble sidecar beside a launcher config lands in the image as
+# /usr/games/launchers/._Main.conf, sorts before the file it shadows, and
+# RetroFE quits on startup when it cannot parse it -- which on the console
+# looks like a boot screen that never reaches the menu. Nothing like this
+# reaches CI, which builds from a clean clone; it is exactly the kind of
+# difference between your build and CI's that this script exists to remove.
 # shellcheck disable=SC2086 -- KEEP is a find expression, deliberately split
-find . ${KEEP} -o ! -type d -print > "${list}" \
+find . ${KEEP} -o ! -type d ! -name '._*' ! -name '.DS_Store' -print > "${list}" \
     || { rm -f "${list}"; die "listing the working tree failed"; }
 
 # --warning=... because macOS records xattrs (com.apple.provenance, and a
 # SCHILY.fflags per file) that GNU tar has no use for and announces one line at
 # a time, thousands of lines of it, burying whatever the build then says. The
 # receiving tar is always this container's GNU tar, so the option is safe here.
-tar -cf - -T "${list}" \
+# COPYFILE_DISABLE stops the bsdtar on macOS from inventing the same sidecars
+# inside the archive for files that merely carry extended attributes, which
+# the receiving tar would then write out as real ._ files.
+COPYFILE_DISABLE=1 tar -cf - -T "${list}" \
     | in_container tar -xf - --warning=no-unknown-keyword -C "${SRC}"
 copied=$?
 rm -f "${list}"
