@@ -236,6 +236,16 @@ Any Makefile target works: `tools/build-local.sh image update`. Add
 > bootstrap — emulated, on an Apple Silicon Mac — that produces nothing you need
 > to flash a card.
 
+> **Some packages stop on make's job server, and the script handles it.**
+> Under x86_64 emulation the pipe that parallel makes pass build slots through
+> does not survive being inherited by everything in the build — zstd's Makefile
+> reaches for it across an exec that dropped it, and so does gcc's
+> `lto-wrapper`, which every LTO-linked package goes through. The package dies
+> with `write jobserver: Bad file descriptor`, which sounds like a damaged tree
+> and is not one. A single job needs no pipe, so the script rebuilds that one
+> package with one job and carries on; the rest of the build keeps its
+> parallelism. Native builds, CI included, never see this.
+
 > **Changing a patch does not trigger a rebuild.** Buildroot applies
 > `FunKey/package/*/…patch` once, at extract time, so editing one and
 > rebuilding silently keeps the old binary. Force it:

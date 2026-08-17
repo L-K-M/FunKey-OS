@@ -178,6 +178,22 @@ clear_stale_buildroot() {
         fi' || die "could not clear the stale buildroot out of the container"
 }
 
+# Which package buildroot was building when it stopped. The stamp path it
+# prints on failure names the external tree and the build directory, and
+# "<tree>/<package>" is exactly the target that rebuilds that one package.
+failed_package() {
+    p="$(in_container sh -c \
+        "sed -n 's|.*/\\([A-Za-z]*\\)/output/build/\\([^/]*\\)/\\.stamp_.*|\\1/\\2|p' br.log \
+         | tail -1")"
+    printf '%s' "${p%-*}"      # drop the version: host-zstd-1.4.8 -> host-zstd
+}
+
+# Only the failure. "jobserver unavailable: using -j1" is a warning some
+# packages print in passing and is not this.
+jobserver_failed() {
+    in_container grep -q 'write jobserver' br.log 2>/dev/null
+}
+
 show_log() {
     if ! in_container test -f br.log; then
         echo "No br.log in the build tree yet."
@@ -200,36 +216,15 @@ show_log() {
         echo "Full log: ${root}/br.log"
     fi
 
-    # "write jobserver: Bad file descriptor" reads like a corrupted tree and is
-    # not one. Parallel makes hand build slots to each other as tokens down a
-    # pipe; a package whose own Makefile recurses in a way make does not
-    # recognise as recursive gets the flags naming that pipe without the pipe,
-    # and dies reaching for it. Which packages do this is a property of their
-    # Makefiles, so it repeats -- host-zstd is the one that does it here.
-    #
-    # A single job needs no pipe at all, so build that package alone with one,
-    # then let the rest of the build run at full speed. Serialising the whole
-    # build would work too and would cost hours.
-    if in_container grep -q 'jobserver' br.log 2>/dev/null; then
-        say "That is make's job server, not your tree"
-
-        pkg="$(in_container sh -c \
-            "sed -n 's|.*/\\([A-Za-z]*\\)/output/build/\\([^/]*\\)/\\.stamp_.*|\\1/\\2|p' br.log \
-             | tail -1")"
-        pkg="${pkg%-*}"
-
-        if [ -n "${pkg}" ]; then
-            echo "Build that one package with a single job, then carry on:"
-            echo ""
-            echo "  tools/build-local.sh BR2_JLEVEL=1 ${pkg}"
-            echo "  tools/build-local.sh"
-        else
-            echo "Build with a single job:"
-            echo ""
-            echo "  tools/build-local.sh BR2_JLEVEL=1 all"
-        fi
+    # Reaching show_log means the single-job rebuild below did not settle it,
+    # so this is no longer the ordinary job-server case the loop handles.
+    if jobserver_failed; then
+        say "That is make's job server again, with a single job"
+        echo "One job creates no job server, so this is not the usual case and"
+        echo "not something re-running will clear. The whole build can be made"
+        echo "serial -- slow, but nothing anywhere in it will hold a pipe:"
         echo ""
-        echo "Everything already built is kept either way."
+        echo "  tools/build-local.sh BR2_JLEVEL=1 all"
     fi
 }
 
@@ -307,12 +302,45 @@ echo "(the first build clones buildroot and takes hours under emulation;"
 echo " later ones resume)"
 echo ""
 
-# shellcheck disable=SC2086 -- targets is a deliberately split list
-if in_container make ${targets}; then
-    status=0
-else
-    status=$?
-fi
+# Make's job server is the pipe parallel makes pass build slots through, and
+# under x86_64 emulation it does not survive being inherited by everything in
+# this build. A package whose own build reaches for it across an exec that
+# dropped it dies with "write jobserver: Bad file descriptor" -- zstd's
+# Makefile does this, and so does gcc's lto-wrapper, which every LTO-linked
+# package goes through. It is a property of those builds, not chance, so the
+# same package fails every time and the next one is waiting behind it.
+#
+# One job needs no pipe, and a package built with one job is the same package.
+# So rebuild the one that stopped with a single job and carry on, rather than
+# stopping to ask -- unattended, this is the difference between a build that
+# finishes and a day of running two commands at a time. The rest of the build
+# keeps its parallelism, which is where the hours are.
+#
+# One attempt each: a package that fails again with a single job is failing
+# for some other reason, and that is worth stopping for.
+retried=""
+
+while : ; do
+    # shellcheck disable=SC2086 -- targets is a deliberately split list
+    if in_container make ${targets}; then
+        status=0
+        break
+    else
+        status=$?
+    fi
+
+    jobserver_failed || break
+    pkg="$(failed_package)"
+    [ -n "${pkg}" ] || break
+    case " ${retried} " in
+        *" ${pkg} "*) break ;;
+    esac
+    retried="${retried} ${pkg}"
+
+    say "${pkg} stopped on make's job server -- rebuilding it with one job"
+    in_container make BR2_JLEVEL=1 "${pkg}" || break
+    say "Continuing: make${targets}"
+done
 
 if [ "${status}" -ne 0 ]; then
     # The Makefile runs buildroot through brmake, which prints only the ">>>"
@@ -321,6 +349,9 @@ if [ "${status}" -ne 0 ]; then
     # what went wrong, so print the log rather than leaving it to be found.
     show_log
     say "Build failed (exit ${status})"
+    if [ -n "${retried}" ]; then
+        echo "Rebuilt with a single job on the way here:${retried}"
+    fi
     echo "Fix, then re-run -- the build resumes rather than starting over."
     echo "For a shell in the tree as it stands: tools/build-local.sh --shell"
     exit "${status}"
