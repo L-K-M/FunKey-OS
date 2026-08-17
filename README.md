@@ -206,8 +206,10 @@ computer.
 
 ## Build from source
 
-Both routes produce the same files in `images/` and compile the whole OS:
-budget **1.5–3 hours** and **~12 GB** of free disk.
+Every route below produces the same files in `images/` and compiles the whole
+OS. Budget **~12 GB** of free disk, and for the first build **1.5–3 hours**
+natively or **around 4** on an Apple Silicon Mac, where the x86_64 container is
+emulated. Later builds only redo what changed.
 
 ### Your own working tree, with Docker
 
@@ -217,16 +219,51 @@ To build what is in front of you — local changes, committed or not:
 tools/build-local.sh
 ```
 
-Only Docker is needed — not even a checked-out `buildroot/`, which the
-container clones itself on the first run. The script copies the rest of your
-working tree in, keeps the build state in a Docker volume so a second run
-resumes instead of starting over, and prints `br.log` if the build fails — the
-Makefile runs buildroot through `brmake`, which sends every error there and
-leaves the terminal showing only which package had started.
+Only Docker is needed. Not even a checked-out `buildroot/`: it is a submodule,
+and the container clones it itself on the first run.
 
-Any Makefile target works: `tools/build-local.sh image update`. Add
-`--shell` for a shell in the build tree, `--log` to reread the last failure,
-`--reset` to discard the build state.
+**What the first run does**, in order, so a long silence is legible rather than
+worrying:
+
+1. Builds the `starling-build-env` image from `docker/Dockerfile` — several
+   minutes, once ever.
+2. Creates a container backed by a Docker volume, and copies your working tree
+   into it. The build's output lives in that volume, which is what makes the
+   *second* run resume instead of restarting.
+3. Clones buildroot inside the container — a few hundred MB, once per volume.
+4. Builds Recovery, then FunKey. On an Apple Silicon Mac under emulation this
+   was **1h45m** and **~2h15m** respectively; natively it is far quicker.
+
+The terminal shows only buildroot's `>>>` progress lines, because the Makefile
+runs it through `brmake`, which sends everything else to `br.log`. On a failure
+the script prints the first error out of that log rather than leaving you to
+find it, and copies the whole log to the repository root.
+
+**What you get.** On success `images/` is copied back out of the container:
+
+| File | What it is for |
+| --- | --- |
+| `FunKey-sdcard-Starling-<version>-RG_Nano.img` | A whole card. See [Install](#install) — erases the card |
+| `FunKey-rootfs-Starling-<version>-RG_Nano.fwu` | An update that keeps games, saves and favorites. See [Update](#update) |
+
+`make -s print-artifacts` prints the exact names for the current version.
+
+**Rebuilding after a change.** Run the same command; buildroot rebuilds only
+what your change touched, which for a launcher edit is minutes rather than
+hours. Useful variations:
+
+| Command | |
+| --- | --- |
+| `tools/build-local.sh image update` | Any Makefile target, instead of `all` |
+| `tools/build-local.sh FunKey/retrofe-dirclean image update` | Force one package to rebuild from scratch |
+| `tools/build-local.sh BR2_JLEVEL=1 all` | Build serially — see the job-server note below |
+| `tools/build-local.sh --log` | Reread the last failure's `br.log` |
+| `tools/build-local.sh --shell` | A shell in the build tree, as it stands |
+| `tools/build-local.sh --reset` | Throw the build state away and start over |
+
+Deleting a file from your tree deletes it in the container too: the copy clears
+the source out first and lays your tree down whole, so a renamed patch cannot
+linger and be applied twice under two names. Only the build's output survives.
 
 > **Do not run `make sdk` to get an image.** `sdk` and `all` are independent:
 > the OS build downloads its cross compiler (`BR2_TOOLCHAIN_EXTERNAL_URL`),
