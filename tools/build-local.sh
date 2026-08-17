@@ -5,6 +5,7 @@
 #   tools/build-local.sh                          make all
 #   tools/build-local.sh image update             any Makefile target
 #   tools/build-local.sh FunKey/retrofe-dirclean image update
+#   tools/build-local.sh BR2_JLEVEL=4 all         cap the parallel jobs
 #   tools/build-local.sh --log                    show the last build's br.log
 #   tools/build-local.sh --shell                  a shell in the build tree
 #   tools/build-local.sh --reset                  throw the build state away
@@ -66,7 +67,7 @@ for arg in "$@"; do
         --reset) mode=reset ;;
         --log)   mode=log ;;
         -h|--help)
-            sed -n '2,10p' "$0" | sed 's/^# \{0,1\}//' >&2
+            sed -n '2,11p' "$0" | sed 's/^# \{0,1\}//' >&2
             exit 2
             ;;
         -*) die "unknown option: ${arg}" ;;
@@ -197,6 +198,21 @@ show_log() {
     if docker cp "${CONTAINER}:${SRC}/br.log" "${root}/br.log" >/dev/null 2>&1; then
         echo ""
         echo "Full log: ${root}/br.log"
+    fi
+
+    # "write jobserver: Bad file descriptor" reads like a corrupted tree and is
+    # not one. Parallel makes hand build slots to each other as tokens down a
+    # pipe, and in an emulated x86_64 container that pipe sometimes comes apart
+    # mid-package. Nothing is damaged: the package stops where it was, and the
+    # next run rebuilds it. Say so, because the wording invites the opposite
+    # conclusion and the tree it appears to indict took hours to build.
+    if in_container grep -q 'jobserver' br.log 2>/dev/null; then
+        say "That is make's job server, not your tree"
+        echo "Re-run: everything already built is kept and the build picks up at"
+        echo "the package that stopped. If it stops there again, build it with"
+        echo "fewer jobs -- there is less to go wrong with one:"
+        echo ""
+        echo "  tools/build-local.sh BR2_JLEVEL=1 all"
     fi
 }
 
