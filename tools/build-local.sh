@@ -202,17 +202,34 @@ show_log() {
 
     # "write jobserver: Bad file descriptor" reads like a corrupted tree and is
     # not one. Parallel makes hand build slots to each other as tokens down a
-    # pipe, and in an emulated x86_64 container that pipe sometimes comes apart
-    # mid-package. Nothing is damaged: the package stops where it was, and the
-    # next run rebuilds it. Say so, because the wording invites the opposite
-    # conclusion and the tree it appears to indict took hours to build.
+    # pipe; a package whose own Makefile recurses in a way make does not
+    # recognise as recursive gets the flags naming that pipe without the pipe,
+    # and dies reaching for it. Which packages do this is a property of their
+    # Makefiles, so it repeats -- host-zstd is the one that does it here.
+    #
+    # A single job needs no pipe at all, so build that package alone with one,
+    # then let the rest of the build run at full speed. Serialising the whole
+    # build would work too and would cost hours.
     if in_container grep -q 'jobserver' br.log 2>/dev/null; then
         say "That is make's job server, not your tree"
-        echo "Re-run: everything already built is kept and the build picks up at"
-        echo "the package that stopped. If it stops there again, build it with"
-        echo "fewer jobs -- there is less to go wrong with one:"
+
+        pkg="$(in_container sh -c \
+            "sed -n 's|.*/\\([A-Za-z]*\\)/output/build/\\([^/]*\\)/\\.stamp_.*|\\1/\\2|p' br.log \
+             | tail -1")"
+        pkg="${pkg%-*}"
+
+        if [ -n "${pkg}" ]; then
+            echo "Build that one package with a single job, then carry on:"
+            echo ""
+            echo "  tools/build-local.sh BR2_JLEVEL=1 ${pkg}"
+            echo "  tools/build-local.sh"
+        else
+            echo "Build with a single job:"
+            echo ""
+            echo "  tools/build-local.sh BR2_JLEVEL=1 all"
+        fi
         echo ""
-        echo "  tools/build-local.sh BR2_JLEVEL=1 all"
+        echo "Everything already built is kept either way."
     fi
 }
 
