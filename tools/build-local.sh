@@ -178,14 +178,40 @@ clear_stale_buildroot() {
         fi' || die "could not clear the stale buildroot out of the container"
 }
 
-# Which package buildroot was building when it stopped. The stamp path it
-# prints on failure names the external tree and the build directory, and
-# "<tree>/<package>" is exactly the target that rebuilds that one package.
+# Which package buildroot was building when it stopped, as the target that
+# rebuilds it: "<tree>/<package>".
+#
+# The stamp path buildroot prints on failure gives the tree and the build
+# directory:
+#
+#     .../FunKey/output/build/libxdgmime-libxdgmime-FunKey-1.0.0/.stamp_built
+#
+# but the name cannot be cut back out of that directory. It is
+# <package>-<version> and the versions here have dashes of their own -- that
+# one is libxdgmime at libxdgmime-FunKey-1.0.0, and cutting at the last dash
+# invents a package that does not exist. buildroot prints the two separated
+# by a space, so take the name from there:
+#
+#     >>> libxdgmime libxdgmime-FunKey-1.0.0 Building
+#
+# A whole-tree step line (">>>   Finalizing target directory") has a space
+# where a package name would be, which is what the [^ ] rules out.
 failed_package() {
-    p="$(in_container sh -c \
-        "sed -n 's|.*/\\([A-Za-z]*\\)/output/build/\\([^/]*\\)/\\.stamp_.*|\\1/\\2|p' br.log \
+    stamp="$(in_container sh -c \
+        "sed -n 's|.*/\\([A-Za-z]*\\)/output/build/\\([^/]*\\)/\\.stamp_.*|\\1 \\2|p' br.log \
          | tail -1")"
-    printf '%s' "${p%-*}"      # drop the version: host-zstd-1.4.8 -> host-zstd
+    tree="${stamp%% *}"
+    dir="${stamp#* }"
+
+    name="$(in_container sh -c \
+        "sed -n 's|.*>>> \\([^ ][^ ]*\\) .*|\\1|p' br.log | tail -1")"
+
+    # Both readings have to agree the directory belongs to the package, or
+    # this is some failure other than the one being handled.
+    [ -n "${stamp}" ] && [ -n "${name}" ] || return 0
+    case "${dir}" in
+        "${name}-"*) printf '%s/%s' "${tree}" "${name}" ;;
+    esac
 }
 
 # Only the failure. "jobserver unavailable: using -j1" is a warning some
