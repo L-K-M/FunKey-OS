@@ -103,31 +103,50 @@ define PICOARCH_BUILD_CMDS
 	# sources compile for the host, and the link fails on "file in wrong
 	# format" after everything has already been built.
 	#
-	# The parallelism goes here, on the cores as a whole, and PROCS= takes it
-	# back out of each core's own build -- picoarch passes every core's make
-	# a -j4 of its own. That is not a tuning preference.
+	# PROCS is the -j picoarch hands each core's own make, and it is -j4 by
+	# default. -j1 here is not a tuning preference, and neither is moving the
+	# parallelism up to the cores as a whole.
 	#
-	# Several cores link with -flto, and gcc's lto-wrapper parallelises an
-	# LTO link by writing a makefile and running make on it -- but only when
-	# it finds a job server advertised in MAKEFLAGS. A make handed -j on its
-	# own command line resets job server mode: it creates one, advertises it
-	# to everything it runs, and closes the pipe for every recipe line that
-	# is not itself a make. A link is such a line, so lto-wrapper's make
-	# inherits a job server that is not there and dies on it:
+	# A make's -j decides what it puts in MAKEFLAGS for everything it runs,
+	# and there are three cases, only one of which works here:
 	#
-	#     make: *** write jobserver: Bad file descriptor.  Stop.
-	#     lto-wrapper: fatal error: make returned 2 exit status
-	#     ld: error: lto-wrapper failed
+	#   no -j       inherits the parent's --jobserver-auth and uses it. But
+	#               make closes the job server pipe for every recipe line
+	#               that is not itself a make, and picoarch's line invoking
+	#               a core is such a line. The core's make takes tokens from
+	#               a pipe that is not there and dies part-way through
+	#               compiling: "write jobserver: Bad file descriptor".
 	#
-	# picodrive fails exactly this way, every time. A make with no -j of its
-	# own does not republish the stale advertisement it inherited, it strips
-	# it -- which leaves lto-wrapper nothing to find and the LTO link runs in
-	# one process. So build four cores at once rather than four files of one
-	# core at once: the same jobs, and the level that breaks is gone.
+	#   -j4         resets job server mode -- a fresh job server of its own,
+	#               so nothing broken is inherited and the core compiles.
+	#               But it advertises that job server in MAKEFLAGS to
+	#               everything it runs, gcc included, and closes the pipe
+	#               for the link. gcc 10's lto-wrapper takes the
+	#               advertisement at face value without checking the pipe,
+	#               parallelises the LTO link by running make on it, and
+	#               that make dies the same way:
+	#
+	#                   make: *** write jobserver: Bad file descriptor.  Stop.
+	#                   lto-wrapper: fatal error: make returned 2 exit status
+	#                   ld: error: lto-wrapper failed
+	#
+	#               picodrive links with -flto and fails exactly this way,
+	#               every time.
+	#
+	#   -j1         resets job server mode, like any explicit -j, so nothing
+	#               is inherited -- and creates no job server, so nothing is
+	#               advertised. lto-wrapper finds none and does the LTO link
+	#               in one process.
+	#
+	# So each core builds single-job and the parallelism moves to the cores
+	# themselves: fourteen independent cores at a time rather than four files
+	# of one core, which is the better shape anyway. gcc 11 learned to check
+	# the pipe before believing in it; a toolchain new enough for that could
+	# have PROCS back.
 	(cd $(@D); \
 	make cores -j$(PARALLEL_JOBS) platform=funkey-s \
 	CORES='$(PICOARCH_CORES)' \
-	PROCS= \
+	PROCS=-j1 \
 	CROSS_COMPILE=$(TARGET_CROSS) \
 	CC=$(TARGET_CROSS)gcc \
 	CXX=$(TARGET_CROSS)g++ \
