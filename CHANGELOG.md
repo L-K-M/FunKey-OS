@@ -3,6 +3,27 @@
 Release notes read the section matching their tag out of this file, so the
 headings are `## Starling-X.Y.Z` — the tag name, exactly.
 
+## Starling-3.1.2
+
+Fixes to the 3.1.1 build, and the first Chinese in the interface.
+
+- **picoarch cores build again.** Each core's make now runs single-job, with
+  the parallelism moved up to the cores as a whole. A make handed its own `-j`
+  advertises a job server in `MAKEFLAGS` to everything it runs, gcc included,
+  then closes the pipe for the link -- and gcc 10's `lto-wrapper` believes the
+  advertisement without checking, so picodrive's LTO link died every time. The
+  new setting also honours `BR2_JLEVEL`, which the hard-coded `-j4` never did.
+- **The in-game menu is bilingual.** VOLUME 音量, BRIGHTNESS 亮度, SAVE 保存,
+  LOAD 读取, ASPECT RATIO 比例, EXIT GAME 退出, SET LAUNCHER 启动器,
+  POWERDOWN 关机 -- each drawn from the layout font and the CJK fallback face
+  on a shared baseline. RETROFE keeps its name.
+- **RetroFE can render text outside ASCII at all.** It used to pre-render a
+  glyph atlas of ASCII 32-127 and walk strings a byte at a time against it, so
+  a Chinese character was three bytes that matched nothing and vanished
+  silently. It now decodes UTF-8 and renders anything the atlas lacks on
+  demand, falling back to Droid Sans Fallback for code points the theme font
+  does not carry. A ROM whose filename is Chinese now shows up.
+
 ## Starling-3.1.1
 
 **3.1.0 was tagged but never published, so this is the first release since
