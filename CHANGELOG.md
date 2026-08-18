@@ -17,7 +17,8 @@ This puts it in the two menus that are actually reachable.
   and one set of glosses -- VOLUME 音量, BRIGHTNESS 亮度, SAVE 保存, LOAD 读取,
   ASPECT RATIO 比例, ADVANCED 高级, EXIT GAME 退出, POWERDOWN 关机, MOUNT USB 挂载,
   SET THEME 主题, SET LAUNCHER 启动器 -- down to the smaller lines beneath them:
-  确定吗, 保存中, 存档位, and the aspect ratio values. Proper nouns (GMENU2X,
+  确定吗, 保存中, 读取中, 处理中, 关机中, 存档位, 读取位, and the aspect ratio
+  values. Proper nouns (GMENU2X,
   RETROFE) and user-supplied names (theme directories) are left alone, since
   neither has a translation to give.
 - **picoarch and RetroFE declare the font they read.** Both open Droid Sans
@@ -36,8 +37,7 @@ Fixes to the 3.1.1 build, and the first Chinese in the interface.
   then closes the pipe for the link -- and gcc 10's `lto-wrapper` believes the
   advertisement without checking, so picodrive's LTO link died every time. The
   new setting also honours `BR2_JLEVEL`, which the hard-coded `-j4` never did.
-- **The gmenu2x menu is bilingual.** (Not the menu a default install
-  shows -- see 3.1.3.) VOLUME 音量, BRIGHTNESS 亮度, SAVE 保存,
+- **The in-game menu is bilingual.** VOLUME 音量, BRIGHTNESS 亮度, SAVE 保存,
   LOAD 读取, ASPECT RATIO 比例, EXIT GAME 退出, SET LAUNCHER 启动器,
   POWERDOWN 关机 -- each drawn from the layout font and the CJK fallback face
   on a shared baseline. RETROFE keeps its name.

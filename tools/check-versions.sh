@@ -58,6 +58,14 @@ need Recovery/board/funkey/rootfs-overlay/etc/sw-versions    "^Recovery	${v}$"
 # CHANGELOG.md for the release notes; a missing section is a warning there,
 # but here it is cheap to insist on.
 need CHANGELOG.md                                            "^## Starling-${v}$"
+# The README names the artifacts a user is told to download, so a stale one
+# sends them looking for a file the release does not contain. It drifted to
+# 3.1.2 while every file above already said 3.1.3, which is precisely the drift
+# this script exists to catch -- it just was not looking here yet.
+need README.md                                               "^# Starling ${v}$"
+need README.md                                               "FunKey-sdcard-Starling-${v}-RG_Nano\.img"
+need README.md                                               "FunKey-rootfs-Starling-${v}-RG_Nano\.fwu"
+need README.md                                               "FunKey-sdk-Starling-${v}\.tar\.gz"
 
 if [ "${fail}" -ne 0 ]; then
     echo "" >&2
