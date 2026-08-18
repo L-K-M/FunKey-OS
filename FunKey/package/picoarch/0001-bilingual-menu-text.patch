@@ -1,18 +1,24 @@
 diff --git a/funkey/fk_menu.c b/funkey/fk_menu.c
-index 4016b0c..3dfda60 100644
+index 4016b0c..26f0604 100644
 --- a/funkey/fk_menu.c
 +++ b/funkey/fk_menu.c
-@@ -75,6 +75,9 @@ extern int video_height;
+@@ -75,6 +75,15 @@ extern int video_height;
  #define MENU_FONT_SIZE_INFO         16
  #define MENU_FONT_NAME_SMALL_INFO   "/usr/games/menu_resources/OpenSans-Regular.ttf"
  #define MENU_FONT_SIZE_SMALL_INFO   13
++/* fonts-droid installs into /usr/share/fonts/droid/, and the rootfs overlay
++ * carries a "truetype -> ." symlink beside it, so this path resolves to that
++ * same file. Do not "correct" it to the install path: replacing that symlink
++ * with a real directory is what makes target-finalize's rsync fail. The "Full"
++ * face is deliberate -- the package ships both, and the plain one covers fewer
++ * code points. */
 +#define MENU_FONT_NAME_CJK          "/usr/share/fonts/truetype/droid/DroidSansFallbackFull.ttf"
 +#define MENU_FONT_SIZE_CJK_TITLE    18
 +#define MENU_FONT_SIZE_CJK_INFO     14
  #define MENU_PNG_BG_PATH            "/usr/games/menu_resources/zone_bg.png"
  #define MENU_PNG_ARROW_TOP_PATH     "/usr/games/menu_resources/arrow_top.png"
  #define MENU_PNG_ARROW_BOTTOM_PATH  "/usr/games/menu_resources/arrow_bottom.png"
-@@ -98,6 +101,8 @@ static int backup_key_repeat_interval=0;
+@@ -98,6 +107,8 @@ static int backup_key_repeat_interval=0;
  static TTF_Font *menu_title_font = NULL;
  static TTF_Font *menu_info_font = NULL;
  static TTF_Font *menu_small_info_font = NULL;
@@ -21,7 +27,7 @@ index 4016b0c..3dfda60 100644
  static SDL_Surface *img_arrow_top = NULL;
  static SDL_Surface *img_arrow_bottom = NULL;
  static SDL_Surface ** menu_zone_surfaces = NULL;
-@@ -156,6 +161,106 @@ static int read_write = 0;
+@@ -156,6 +167,111 @@ static int read_write = 0;
  
  /// -------------- FUNCTIONS IMPLEMENTATION --------------
  
@@ -71,6 +77,11 @@ index 4016b0c..3dfda60 100644
 +		latin_y = -cjk_y;
 +		cjk_y = 0;
 +	}
++	/* Not clamped to the zone width. Every gloss in this file was rendered at
++	 * these sizes against the real DroidSansFallbackFull.ttf and measured; the
++	 * widest line comes to 230px inside a 240px zone. A longer gloss would
++	 * centre at a negative x and clip at both ends, so measure before adding
++	 * one. */
 +	int w = latin_surface->w + gap + cjk_surface->w;
 +	int h = (latin_y + latin_surface->h > cjk_y + cjk_surface->h)?
 +			latin_y + latin_surface->h : cjk_y + cjk_surface->h;
@@ -128,7 +139,7 @@ index 4016b0c..3dfda60 100644
  #if defined(HAS_MENU_VOLUME) || defined(HAS_MENU_BRIGHTNESS)
  static void draw_progress_bar(SDL_Surface * surface, uint16_t x, uint16_t y, uint16_t width,
  		uint16_t height, uint8_t percentage, uint16_t nb_bars)
-@@ -291,7 +396,7 @@ static void add_menu_zone(ENUM_MENU_TYPE menu_type)
+@@ -291,7 +407,7 @@ static void add_menu_zone(ENUM_MENU_TYPE menu_type)
  	case MENU_TYPE_VOLUME:
  		MENU_DEBUG_PRINTF("Init MENU_TYPE_VOLUME\n");
  		/// ------ Text ------
@@ -137,7 +148,7 @@ index 4016b0c..3dfda60 100644
  		text_pos.x = (surface->w - MENU_ZONE_WIDTH)/2 + (MENU_ZONE_WIDTH - text_surface->w)/2;
  		text_pos.y = surface->h - MENU_ZONE_HEIGHT/2 - text_surface->h/2 - padding_y_from_center_menu_zone;
  		SDL_BlitSurface(text_surface, NULL, surface, &text_pos);
-@@ -306,7 +411,7 @@ static void add_menu_zone(ENUM_MENU_TYPE menu_type)
+@@ -306,7 +422,7 @@ static void add_menu_zone(ENUM_MENU_TYPE menu_type)
  	case MENU_TYPE_BRIGHTNESS:
  		MENU_DEBUG_PRINTF("Init MENU_TYPE_BRIGHTNESS\n");
  		/// ------ Text ------
@@ -146,7 +157,7 @@ index 4016b0c..3dfda60 100644
  		text_pos.x = (surface->w - MENU_ZONE_WIDTH)/2 + (MENU_ZONE_WIDTH - text_surface->w)/2;
  		text_pos.y = surface->h - MENU_ZONE_HEIGHT/2 - text_surface->h/2 - padding_y_from_center_menu_zone;
  		SDL_BlitSurface(text_surface, NULL, surface, &text_pos);
-@@ -321,7 +426,7 @@ static void add_menu_zone(ENUM_MENU_TYPE menu_type)
+@@ -321,7 +437,7 @@ static void add_menu_zone(ENUM_MENU_TYPE menu_type)
  	case MENU_TYPE_SAVE:
  		MENU_DEBUG_PRINTF("Init MENU_TYPE_SAVE\n");
  		/// ------ Text ------
@@ -155,7 +166,7 @@ index 4016b0c..3dfda60 100644
  		text_pos.x = (surface->w - MENU_ZONE_WIDTH)/2 + (MENU_ZONE_WIDTH - text_surface->w)/2;
  		text_pos.y = surface->h - MENU_ZONE_HEIGHT/2 - text_surface->h/2 - padding_y_from_center_menu_zone*2;
  		SDL_BlitSurface(text_surface, NULL, surface, &text_pos);
-@@ -331,7 +436,7 @@ static void add_menu_zone(ENUM_MENU_TYPE menu_type)
+@@ -331,7 +447,7 @@ static void add_menu_zone(ENUM_MENU_TYPE menu_type)
  	case MENU_TYPE_LOAD:
  		MENU_DEBUG_PRINTF("Init MENU_TYPE_LOAD\n");
  		/// ------ Text ------
@@ -164,7 +175,7 @@ index 4016b0c..3dfda60 100644
  		text_pos.x = (surface->w - MENU_ZONE_WIDTH)/2 + (MENU_ZONE_WIDTH - text_surface->w)/2;
  		text_pos.y = surface->h - MENU_ZONE_HEIGHT/2 - text_surface->h/2 - padding_y_from_center_menu_zone*2;
  		SDL_BlitSurface(text_surface, NULL, surface, &text_pos);
-@@ -341,7 +446,7 @@ static void add_menu_zone(ENUM_MENU_TYPE menu_type)
+@@ -341,7 +457,7 @@ static void add_menu_zone(ENUM_MENU_TYPE menu_type)
  	case MENU_TYPE_ASPECT_RATIO:
  		MENU_DEBUG_PRINTF("Init MENU_TYPE_ASPECT_RATIO\n");
  		/// ------ Text ------
@@ -173,7 +184,7 @@ index 4016b0c..3dfda60 100644
  		text_pos.x = (surface->w - MENU_ZONE_WIDTH)/2 + (MENU_ZONE_WIDTH - text_surface->w)/2;
  		text_pos.y = surface->h - MENU_ZONE_HEIGHT/2 - text_surface->h/2 - padding_y_from_center_menu_zone;
  		SDL_BlitSurface(text_surface, NULL, surface, &text_pos);
-@@ -351,7 +456,7 @@ static void add_menu_zone(ENUM_MENU_TYPE menu_type)
+@@ -351,7 +467,7 @@ static void add_menu_zone(ENUM_MENU_TYPE menu_type)
  	case MENU_TYPE_USB:
  		MENU_DEBUG_PRINTF("Init MENU_TYPE_USB\n");
  		/// ------ Text ------
@@ -182,7 +193,7 @@ index 4016b0c..3dfda60 100644
  		text_pos.x = (surface->w - MENU_ZONE_WIDTH)/2 + (MENU_ZONE_WIDTH - text_surface->w)/2;
  		text_pos.y = surface->h - MENU_ZONE_HEIGHT/2 - text_surface->h/2;
  		SDL_BlitSurface(text_surface, NULL, surface, &text_pos);
-@@ -361,7 +466,7 @@ static void add_menu_zone(ENUM_MENU_TYPE menu_type)
+@@ -361,7 +477,7 @@ static void add_menu_zone(ENUM_MENU_TYPE menu_type)
  	case MENU_TYPE_THEME:
  		MENU_DEBUG_PRINTF("Init MENU_TYPE_THEME\n");
  		/// ------ Text ------
@@ -191,7 +202,7 @@ index 4016b0c..3dfda60 100644
  		text_pos.x = (surface->w - MENU_ZONE_WIDTH)/2 + (MENU_ZONE_WIDTH - text_surface->w)/2;
  		text_pos.y = surface->h - MENU_ZONE_HEIGHT/2 - text_surface->h/2 - padding_y_from_center_menu_zone*2;
  		SDL_BlitSurface(text_surface, NULL, surface, &text_pos);
-@@ -371,12 +476,12 @@ static void add_menu_zone(ENUM_MENU_TYPE menu_type)
+@@ -371,12 +487,12 @@ static void add_menu_zone(ENUM_MENU_TYPE menu_type)
  	case MENU_TYPE_LAUNCHER:
  		MENU_DEBUG_PRINTF("Init MENU_TYPE_LAUNCHER\n");
  		/// ------ Text ------
@@ -206,7 +217,7 @@ index 4016b0c..3dfda60 100644
  		text_pos.x = (surface->w - MENU_ZONE_WIDTH)/2 + (MENU_ZONE_WIDTH - text_surface->w)/2;
  		text_pos.y = surface->h - MENU_ZONE_HEIGHT/2 - text_surface->h/2;
  		SDL_BlitSurface(text_surface, NULL, surface, &text_pos);
-@@ -386,7 +491,7 @@ static void add_menu_zone(ENUM_MENU_TYPE menu_type)
+@@ -386,7 +502,7 @@ static void add_menu_zone(ENUM_MENU_TYPE menu_type)
  	case MENU_TYPE_RO_RW:
  		MENU_DEBUG_PRINTF("Init MENU_TYPE_RO_RW\n");
  		/// ------ Text ------
@@ -215,7 +226,7 @@ index 4016b0c..3dfda60 100644
  		text_pos.x = (surface->w - MENU_ZONE_WIDTH)/2 + (MENU_ZONE_WIDTH - text_surface->w)/2;
  		text_pos.y = surface->h - MENU_ZONE_HEIGHT/2 - text_surface->h/2 - padding_y_from_center_menu_zone*2;
  		SDL_BlitSurface(text_surface, NULL, surface, &text_pos);
-@@ -396,7 +501,7 @@ static void add_menu_zone(ENUM_MENU_TYPE menu_type)
+@@ -396,7 +512,7 @@ static void add_menu_zone(ENUM_MENU_TYPE menu_type)
  	case MENU_TYPE_ADVANCED:
  		MENU_DEBUG_PRINTF("Init MENU_TYPE_ADVANCED\n");
  		/// ------ Text ------
@@ -224,7 +235,7 @@ index 4016b0c..3dfda60 100644
  		text_pos.x = (surface->w - MENU_ZONE_WIDTH)/2 + (MENU_ZONE_WIDTH - text_surface->w)/2;
  		text_pos.y = surface->h - MENU_ZONE_HEIGHT/2 - text_surface->h/2;
  		SDL_BlitSurface(text_surface, NULL, surface, &text_pos);
-@@ -406,7 +511,7 @@ static void add_menu_zone(ENUM_MENU_TYPE menu_type)
+@@ -406,7 +522,7 @@ static void add_menu_zone(ENUM_MENU_TYPE menu_type)
  	case MENU_TYPE_EXIT:
  		MENU_DEBUG_PRINTF("Init MENU_TYPE_EXIT\n");
  		/// ------ Text ------
@@ -233,7 +244,7 @@ index 4016b0c..3dfda60 100644
  		text_pos.x = (surface->w - MENU_ZONE_WIDTH)/2 + (MENU_ZONE_WIDTH - text_surface->w)/2;
  		text_pos.y = surface->h - MENU_ZONE_HEIGHT/2 - text_surface->h/2;
  		SDL_BlitSurface(text_surface, NULL, surface, &text_pos);
-@@ -416,7 +521,7 @@ static void add_menu_zone(ENUM_MENU_TYPE menu_type)
+@@ -416,7 +532,7 @@ static void add_menu_zone(ENUM_MENU_TYPE menu_type)
  	case MENU_TYPE_POWERDOWN:
  		MENU_DEBUG_PRINTF("Init MENU_TYPE_POWERDOWN\n");
  		/// ------ Text ------
@@ -242,7 +253,7 @@ index 4016b0c..3dfda60 100644
  		text_pos.x = (surface->w - MENU_ZONE_WIDTH)/2 + (MENU_ZONE_WIDTH - text_surface->w)/2;
  		text_pos.y = surface->h - MENU_ZONE_HEIGHT/2 - text_surface->h/2;
  		SDL_BlitSurface(text_surface, NULL, surface, &text_pos);
-@@ -496,6 +601,13 @@ void FK_InitMenu(void)
+@@ -496,6 +612,13 @@ void FK_InitMenu(void)
  	if(!menu_small_info_font){
  		MENU_ERROR_PRINTF("ERROR in init_menu_SDL: Could not open menu font %s, %s\n", MENU_FONT_NAME_SMALL_INFO, SDL_GetError());
  	}
@@ -256,7 +267,7 @@ index 4016b0c..3dfda60 100644
  
  	/// ------ Load arrows imgs -------
  	img_arrow_top = IMG_Load(MENU_PNG_ARROW_TOP_PATH);
-@@ -532,6 +644,14 @@ void FK_EndMenu(void)
+@@ -532,6 +655,14 @@ void FK_EndMenu(void)
  	TTF_CloseFont(menu_title_font);
  	TTF_CloseFont(menu_info_font);
  	TTF_CloseFont(menu_small_info_font);
@@ -271,7 +282,7 @@ index 4016b0c..3dfda60 100644
  
  	/// ------ Free Surfaces -------
  	for(int i=0; i < nb_menu_zones; i++){
-@@ -714,25 +834,25 @@ static void menu_screen_refresh(SDL_Surface *screen, int menuItem, int prevItem,
+@@ -714,25 +845,25 @@ static void menu_screen_refresh(SDL_Surface *screen, int menuItem, int prevItem,
  		case MENU_TYPE_SAVE:
  			/// ---- Write slot -----
  			sprintf(text_tmp, "IN SLOT   < %d >", state_slot+1);
@@ -302,7 +313,7 @@ index 4016b0c..3dfda60 100644
  					}
  				}
  			}
-@@ -745,25 +865,25 @@ static void menu_screen_refresh(SDL_Surface *screen, int menuItem, int prevItem,
+@@ -745,25 +876,25 @@ static void menu_screen_refresh(SDL_Surface *screen, int menuItem, int prevItem,
  		case MENU_TYPE_LOAD:
  			/// ---- Write slot -----
  			sprintf(text_tmp, "FROM SLOT   < %d >", state_slot+1);
@@ -333,7 +344,7 @@ index 4016b0c..3dfda60 100644
  					}
  				}
  			}
-@@ -775,7 +895,8 @@ static void menu_screen_refresh(SDL_Surface *screen, int menuItem, int prevItem,
+@@ -775,7 +906,8 @@ static void menu_screen_refresh(SDL_Surface *screen, int menuItem, int prevItem,
  #ifdef HAS_MENU_ASPECT_RATIO
  		case MENU_TYPE_ASPECT_RATIO:
  			sprintf(text_tmp, "<   %s   >", aspect_ratio_name[menu_aspect_ratio]);
@@ -343,7 +354,7 @@ index 4016b0c..3dfda60 100644
  			text_pos.x = (screen->w - MENU_ZONE_WIDTH)/2 + (MENU_ZONE_WIDTH - text_surface->w)/2;
  			text_pos.y = screen->h - MENU_ZONE_HEIGHT/2 - text_surface->h/2 + padding_y_from_center_menu_zone;
  			SDL_BlitSurface(text_surface, NULL, screen, &text_pos);
-@@ -785,21 +906,21 @@ static void menu_screen_refresh(SDL_Surface *screen, int menuItem, int prevItem,
+@@ -785,21 +917,21 @@ static void menu_screen_refresh(SDL_Surface *screen, int menuItem, int prevItem,
  		case MENU_TYPE_USB:
  			/// ---- Write slot -----
  			sprintf(text_tmp, "%s USB", usb_sharing?"EJECT":"MOUNT");
@@ -368,7 +379,7 @@ index 4016b0c..3dfda60 100644
  				text_pos.x = (screen->w - MENU_ZONE_WIDTH)/2 + (MENU_ZONE_WIDTH - text_surface->w)/2;
  				text_pos.y = screen->h - MENU_ZONE_HEIGHT/2 - text_surface->h/2 + 2*padding_y_from_center_menu_zone;
  				SDL_BlitSurface(text_surface, NULL, screen, &text_pos);
-@@ -828,14 +949,14 @@ static void menu_screen_refresh(SDL_Surface *screen, int menuItem, int prevItem,
+@@ -828,14 +960,14 @@ static void menu_screen_refresh(SDL_Surface *screen, int menuItem, int prevItem,
  
  			if(menu_action){
  				sprintf(text_tmp, "In progress...");
@@ -385,7 +396,7 @@ index 4016b0c..3dfda60 100644
  				text_pos.x = (screen->w - MENU_ZONE_WIDTH)/2 + (MENU_ZONE_WIDTH - text_surface->w)/2;
  				text_pos.y = screen->h - MENU_ZONE_HEIGHT/2 - text_surface->h/2 + 2*padding_y_from_center_menu_zone;
  				SDL_BlitSurface(text_surface, NULL, screen, &text_pos);
-@@ -846,14 +967,14 @@ static void menu_screen_refresh(SDL_Surface *screen, int menuItem, int prevItem,
+@@ -846,14 +978,14 @@ static void menu_screen_refresh(SDL_Surface *screen, int menuItem, int prevItem,
  		case MENU_TYPE_LAUNCHER:
  			if(menu_action){
  				sprintf(text_tmp, "In progress...");
@@ -402,7 +413,7 @@ index 4016b0c..3dfda60 100644
  				text_pos.x = (screen->w - MENU_ZONE_WIDTH)/2 + (MENU_ZONE_WIDTH - text_surface->w)/2;
  				text_pos.y = screen->h - MENU_ZONE_HEIGHT/2 - text_surface->h/2 + 2*padding_y_from_center_menu_zone;
  				SDL_BlitSurface(text_surface, NULL, screen, &text_pos);
-@@ -869,7 +990,7 @@ static void menu_screen_refresh(SDL_Surface *screen, int menuItem, int prevItem,
+@@ -869,7 +1001,7 @@ static void menu_screen_refresh(SDL_Surface *screen, int menuItem, int prevItem,
  #if defined(HAS_MENU_EXIT) || defined(HAS_MENU_POWERDOWN)
  			if(menu_action){
  				sprintf(text_tmp, "Shutting down...");
@@ -411,7 +422,7 @@ index 4016b0c..3dfda60 100644
  				text_pos.x = (screen->w - MENU_ZONE_WIDTH)/2 + (MENU_ZONE_WIDTH - text_surface->w)/2;
  				text_pos.y = screen->h - MENU_ZONE_HEIGHT/2 - text_surface->h/2 + 2*padding_y_from_center_menu_zone;
  				SDL_BlitSurface(text_surface, NULL, screen, &text_pos);
-@@ -877,7 +998,7 @@ static void menu_screen_refresh(SDL_Surface *screen, int menuItem, int prevItem,
+@@ -877,7 +1009,7 @@ static void menu_screen_refresh(SDL_Surface *screen, int menuItem, int prevItem,
  			else{
  				if(menu_confirmation){
  					sprintf(text_tmp, "Are you sure?");
@@ -420,7 +431,7 @@ index 4016b0c..3dfda60 100644
  					text_pos.x = (screen->w - MENU_ZONE_WIDTH)/2 + (MENU_ZONE_WIDTH - text_surface->w)/2;
  					text_pos.y = screen->h - MENU_ZONE_HEIGHT/2 - text_surface->h/2 + 2*padding_y_from_center_menu_zone;
  					SDL_BlitSurface(text_surface, NULL, screen, &text_pos);
-@@ -888,21 +1009,21 @@ static void menu_screen_refresh(SDL_Surface *screen, int menuItem, int prevItem,
+@@ -888,21 +1020,21 @@ static void menu_screen_refresh(SDL_Surface *screen, int menuItem, int prevItem,
  #ifdef HAS_MENU_RO_RW
  		case MENU_TYPE_RO_RW:
  			sprintf(text_tmp, "%s", read_write?"READ-ONLY":"READ-WRITE");
@@ -445,7 +456,7 @@ index 4016b0c..3dfda60 100644
  				text_pos.x = (screen->w - MENU_ZONE_WIDTH)/2 + (MENU_ZONE_WIDTH - text_surface->w)/2;
  				text_pos.y = screen->h - MENU_ZONE_HEIGHT/2 - text_surface->h/2 + 2*padding_y_from_center_menu_zone;
  				SDL_BlitSurface(text_surface, NULL, screen, &text_pos);
-@@ -1673,7 +1794,8 @@ int FK_RunResumeMenu(SDL_Surface *hw_screen)
+@@ -1673,7 +1805,8 @@ int FK_RunResumeMenu(SDL_Surface *hw_screen)
              }
  
              /* Draw resume or reset option */
@@ -455,7 +466,7 @@ index 4016b0c..3dfda60 100644
              text_pos.x = (hw_screen->w - MENU_ZONE_WIDTH)/2 + (MENU_ZONE_WIDTH - text_surface->w)/2;
              text_pos.y = hw_screen->h - MENU_ZONE_HEIGHT/2 - text_surface->h/2;
              SDL_BlitSurface(text_surface, NULL, hw_screen, &text_pos);
-@@ -1681,7 +1803,7 @@ int FK_RunResumeMenu(SDL_Surface *hw_screen)
+@@ -1681,7 +1814,7 @@ int FK_RunResumeMenu(SDL_Surface *hw_screen)
              /* Draw confirmation */
              if(menu_confirmation){
                  sprintf(text_tmp, "Are you sure ?");
