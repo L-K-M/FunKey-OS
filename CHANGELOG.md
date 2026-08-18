@@ -24,6 +24,17 @@ This puts it in the two menus that are actually reachable.
   patched trees, so each now carries a comment naming the other two, because a
   gloss changed in one of them and not the others is how the console ends up
   showing different Chinese depending on which menu you opened.
+- **Bilingual lines are sized to fit the box they sit in.** The white panel
+  behind a menu line is `MENU_BG_SQUARE_WIDTH`, 180px, while the text is centred
+  over the full 240px screen -- so a line wider than 180px spills past both
+  edges of the panel with nothing behind it. The English titles were already cut
+  to fill that box (POWERDOWN alone very nearly does), so appending a gloss at
+  the same point size overflowed by construction. Each line now renders at the
+  largest rung of a five-step size ladder that fits, which leaves two thirds of
+  them at exactly the size they have always been and steps the rest down one or
+  two rungs. MANUAL ZOOM's gloss is 手动 rather than 手动缩放, being the one
+  string that could not be made to fit at any rung.
+
 - **picoarch and RetroFE declare the font they read.** Both open Droid Sans
   Fallback by absolute path, but neither selected `fonts-droid` -- the file was
   in the image only because gmenu2x happened to pull it in. Switching gmenu2x
