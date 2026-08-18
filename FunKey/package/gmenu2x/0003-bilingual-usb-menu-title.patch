@@ -1,0 +1,30 @@
+diff --git a/src/funkeymenu.cpp b/src/funkeymenu.cpp
+index b7f7787..9926ec2 100644
+--- a/src/funkeymenu.cpp
++++ b/src/funkeymenu.cpp
+@@ -702,11 +702,24 @@ void FunkeyMenu::menu_screen_refresh(int menuItem, int prevItem, int scroll, uin
+ 
+ 		case MENU_TYPE_USB:
+ 			/// ---- Write slot -----
++			/* The one menu title built here rather than in add_menu_zone: it
++			 * says MOUNT or EJECT depending on what is mounted right now, so
++			 * there is no fixed surface to prepare once. The Chinese is the
++			 * verb alone -- "USB" is already in the Latin half, and the other
++			 * titles gloss rather than transliterate. */
+ 			sprintf(text_tmp, "%s USB", usb_sharing?"EJECT":"MOUNT");
+-			text_surface = TTF_RenderText_Blended(menu_title_font, text_tmp, text_color);
++			text_surface = render_menu_title(menu_title_font, text_tmp,
++					usb_sharing?"弹出":"挂载", text_color);
+ 			text_pos.x = (draw_screen->w - MENU_ZONE_WIDTH)/2 + (MENU_ZONE_WIDTH - text_surface->w)/2;
+ 			text_pos.y = draw_screen->h - MENU_ZONE_HEIGHT/2 - text_surface->h/2;
+ 			SDL_BlitSurface(text_surface, NULL, draw_screen, &text_pos);
++			/* Freed here, not by the free at the end of the switch: the two
++			 * branches below overwrite text_surface, and that free only ever
++			 * reaches the last surface assigned. Every frame spent in a
++			 * confirmation leaked the title before; a composed title is two
++			 * surfaces' worth of that. */
++			SDL_FreeSurface(text_surface);
++			text_surface = NULL;
+ 
+ 			if(menu_action){
+ 				sprintf(text_tmp, "in progress ...");
