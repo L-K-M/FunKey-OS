@@ -67,6 +67,19 @@ need README.md                                               "FunKey-sdcard-Star
 need README.md                                               "FunKey-rootfs-Starling-${v}-RG_Nano\.fwu"
 need README.md                                               "FunKey-sdk-Starling-${v}\.tar\.gz"
 
+# Each artifact is named more than once -- the .img in the download table and
+# again in the dd command line, the .fwu in the table and again in the USB
+# update steps -- so the presence checks above are satisfied by a single fresh
+# mention while a stale one sits further down the file. Fail on any artifact
+# filename carrying a version that is not the current one.
+stale="$(grep -nE 'FunKey-(sdcard|rootfs|sdk)-Starling-[0-9]+(\.[0-9]+)+' README.md \
+  | grep -v "Starling-${v}[-.]" || true)"
+if [ -n "${stale}" ]; then
+    echo "ERROR: README.md names an artifact at a version other than ${version}:" >&2
+    printf '%s\n' "${stale}" >&2
+    fail=1
+fi
+
 if [ "${fail}" -ne 0 ]; then
     echo "" >&2
     echo "Version strings disagree with the Makefile's OS_VERSION." >&2

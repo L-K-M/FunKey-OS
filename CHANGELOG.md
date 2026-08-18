@@ -13,14 +13,17 @@ This puts it in the two menus that are actually reachable.
   is only reachable when gmenu2x is the launcher; `fk_menu.c` in picoarch, which
   is what the menu button raises inside a game; and `MenuMode.cpp` in RetroFE,
   which is what it raises in the library. 3.1.2 translated the first one, and a
-  default install shows the other two. All three now share one rendering helper
-  and one set of glosses -- VOLUME 音量, BRIGHTNESS 亮度, SAVE 保存, LOAD 读取,
-  ASPECT RATIO 比例, ADVANCED 高级, EXIT GAME 退出, POWERDOWN 关机, MOUNT USB 挂载,
-  SET THEME 主题, SET LAUNCHER 启动器 -- down to the smaller lines beneath them:
-  确定吗, 保存中, 读取中, 处理中, 关机中, 存档位, 读取位, and the aspect ratio
-  values. Proper nouns (GMENU2X,
-  RETROFE) and user-supplied names (theme directories) are left alone, since
-  neither has a translation to give.
+  default install shows the other two. All three now carry matching rendering
+  helpers and the same set of glosses: VOLUME 音量, BRIGHTNESS 亮度, SAVE 保存,
+  LOAD 读取, ASPECT RATIO 比例, ADVANCED 高级, EXIT GAME 退出, POWERDOWN 关机,
+  MOUNT USB 挂载, SET THEME 主题, SET LAUNCHER 启动器 -- down to the smaller
+  lines beneath them: 确定吗, 保存中, 读取中, 处理中, 关机中, 存档位, 读取位,
+  and the aspect ratio values. Proper nouns (GMENU2X, RETROFE) and user-supplied
+  names (theme directories) are left alone, since neither has a translation to
+  give. Matching, not shared: they are three copies in three independently
+  patched trees, so each now carries a comment naming the other two, because a
+  gloss changed in one of them and not the others is how the console ends up
+  showing different Chinese depending on which menu you opened.
 - **picoarch and RetroFE declare the font they read.** Both open Droid Sans
   Fallback by absolute path, but neither selected `fonts-droid` -- the file was
   in the image only because gmenu2x happened to pull it in. Switching gmenu2x

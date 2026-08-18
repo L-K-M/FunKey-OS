@@ -1,5 +1,5 @@
 diff --git a/src/funkeymenu.cpp b/src/funkeymenu.cpp
-index 52b1b1b..c79df8e 100644
+index 52b1b1b..9bd7f2f 100644
 --- a/src/funkeymenu.cpp
 +++ b/src/funkeymenu.cpp
 @@ -38,6 +38,9 @@
@@ -22,11 +22,20 @@ index 52b1b1b..c79df8e 100644
  SDL_Surface *img_arrow_top = NULL;
  SDL_Surface *img_arrow_bottom = NULL;
  SDL_Surface ** FunkeyMenu::menu_zone_surfaces = NULL;
-@@ -98,6 +104,90 @@ int usb_sharing = 0;
+@@ -98,6 +104,99 @@ int usb_sharing = 0;
  
  
  /// -------------- FUNCTIONS IMPLEMENTATION --------------
 +
++/* This helper, and every gloss handed to it, is one of three copies. The FunKey
++ * menu exists three times over -- src/funkeymenu.cpp in gmenu2x (the launcher
++ * menu), funkey/fk_menu.c in picoarch (the in-game menu), and
++ * Source/Menu/MenuMode.cpp in RetroFE (the library menu) -- in three trees
++ * patched independently, so nothing here is shared at build time and only
++ * matching edits keep them in step. Change a gloss in one and the console shows
++ * different Chinese depending on which menu was opened. 3.1.2 shipped precisely
++ * that, having translated the gmenu2x copy alone, which is the one a default
++ * install never draws. */
 +/* One TTF_Font is one face and SDL_ttf does not fall back between them, so a
 + * line that mixes scripts cannot come out of a single render call: OpenSans has
 + * no Chinese, and Droid Sans Fallback has no bold Latin. Render each half with
@@ -113,7 +122,7 @@ index 52b1b1b..c79df8e 100644
  void FunkeyMenu::init(GMenu2X &gmenu2x)
  {
  	MENU_DEBUG_PRINTF("Init FunkeyMenu\n");
-@@ -114,6 +204,13 @@ void FunkeyMenu::init(GMenu2X &gmenu2x)
+@@ -114,6 +213,13 @@ void FunkeyMenu::init(GMenu2X &gmenu2x)
  	if(!menu_small_info_font){
  		MENU_ERROR_PRINTF("ERROR in init_menu_SDL: Could not open menu font %s, %s\n", MENU_FONT_NAME_SMALL_INFO, SDL_GetError());
  	}
@@ -127,7 +136,7 @@ index 52b1b1b..c79df8e 100644
  
  	/// ------ Save GMenu2X instance pointer ------
  	gmenu2x_ptr = &gmenu2x;
-@@ -155,6 +252,14 @@ void FunkeyMenu::end( )
+@@ -155,6 +261,14 @@ void FunkeyMenu::end( )
  	TTF_CloseFont(menu_title_font);
  	TTF_CloseFont(menu_info_font);
  	TTF_CloseFont(menu_small_info_font);
@@ -142,7 +151,7 @@ index 52b1b1b..c79df8e 100644
  
  	/// ------ Free Surfaces -------
  	for(int i=0; i < nb_menu_zones; i++){
-@@ -285,7 +390,7 @@ void FunkeyMenu::add_menu_zone(ENUM_MENU_TYPE menu_type){
+@@ -285,7 +399,7 @@ void FunkeyMenu::add_menu_zone(ENUM_MENU_TYPE menu_type){
  	case MENU_TYPE_VOLUME:
  		MENU_DEBUG_PRINTF("Init MENU_TYPE_VOLUME\n");
  		/// ------ Text ------
@@ -151,7 +160,7 @@ index 52b1b1b..c79df8e 100644
  		text_pos.x = (surface->w - MENU_ZONE_WIDTH)/2 + (MENU_ZONE_WIDTH - text_surface->w)/2;
  		text_pos.y = surface->h - MENU_ZONE_HEIGHT/2 - text_surface->h/2 - padding_y_from_center_menu_zone;
  		SDL_BlitSurface(text_surface, NULL, surface, &text_pos);
-@@ -298,7 +403,7 @@ void FunkeyMenu::add_menu_zone(ENUM_MENU_TYPE menu_type){
+@@ -298,7 +412,7 @@ void FunkeyMenu::add_menu_zone(ENUM_MENU_TYPE menu_type){
  	case MENU_TYPE_BRIGHTNESS:
  		MENU_DEBUG_PRINTF("Init MENU_TYPE_BRIGHTNESS\n");
  		/// ------ Text ------
@@ -160,7 +169,7 @@ index 52b1b1b..c79df8e 100644
  		text_pos.x = (surface->w - MENU_ZONE_WIDTH)/2 + (MENU_ZONE_WIDTH - text_surface->w)/2;
  		text_pos.y = surface->h - MENU_ZONE_HEIGHT/2 - text_surface->h/2 - padding_y_from_center_menu_zone;
  		SDL_BlitSurface(text_surface, NULL, surface, &text_pos);
-@@ -311,7 +416,7 @@ void FunkeyMenu::add_menu_zone(ENUM_MENU_TYPE menu_type){
+@@ -311,7 +425,7 @@ void FunkeyMenu::add_menu_zone(ENUM_MENU_TYPE menu_type){
  	case MENU_TYPE_SAVE:
  		MENU_DEBUG_PRINTF("Init MENU_TYPE_SAVE\n");
  		/// ------ Text ------
@@ -169,7 +178,7 @@ index 52b1b1b..c79df8e 100644
  		text_pos.x = (surface->w - MENU_ZONE_WIDTH)/2 + (MENU_ZONE_WIDTH - text_surface->w)/2;
  		text_pos.y = surface->h - MENU_ZONE_HEIGHT/2 - text_surface->h/2 - padding_y_from_center_menu_zone*2;
  		SDL_BlitSurface(text_surface, NULL, surface, &text_pos);
-@@ -319,7 +424,7 @@ void FunkeyMenu::add_menu_zone(ENUM_MENU_TYPE menu_type){
+@@ -319,7 +433,7 @@ void FunkeyMenu::add_menu_zone(ENUM_MENU_TYPE menu_type){
  	case MENU_TYPE_LOAD:
  		MENU_DEBUG_PRINTF("Init MENU_TYPE_LOAD\n");
  		/// ------ Text ------
@@ -178,7 +187,7 @@ index 52b1b1b..c79df8e 100644
  		text_pos.x = (surface->w - MENU_ZONE_WIDTH)/2 + (MENU_ZONE_WIDTH - text_surface->w)/2;
  		text_pos.y = surface->h - MENU_ZONE_HEIGHT/2 - text_surface->h/2 - padding_y_from_center_menu_zone*2;
  		SDL_BlitSurface(text_surface, NULL, surface, &text_pos);
-@@ -327,7 +432,7 @@ void FunkeyMenu::add_menu_zone(ENUM_MENU_TYPE menu_type){
+@@ -327,7 +441,7 @@ void FunkeyMenu::add_menu_zone(ENUM_MENU_TYPE menu_type){
  	case MENU_TYPE_ASPECT_RATIO:
  		MENU_DEBUG_PRINTF("Init MENU_TYPE_ASPECT_RATIO\n");
  		/// ------ Text ------
@@ -187,7 +196,7 @@ index 52b1b1b..c79df8e 100644
  		text_pos.x = (surface->w - MENU_ZONE_WIDTH)/2 + (MENU_ZONE_WIDTH - text_surface->w)/2;
  		text_pos.y = surface->h - MENU_ZONE_HEIGHT/2 - text_surface->h/2 - padding_y_from_center_menu_zone;
  		SDL_BlitSurface(text_surface, NULL, surface, &text_pos);
-@@ -335,7 +440,7 @@ void FunkeyMenu::add_menu_zone(ENUM_MENU_TYPE menu_type){
+@@ -335,7 +449,7 @@ void FunkeyMenu::add_menu_zone(ENUM_MENU_TYPE menu_type){
  	case MENU_TYPE_EXIT:
  		MENU_DEBUG_PRINTF("Init MENU_TYPE_EXIT\n");
  		/// ------ Text ------
@@ -196,7 +205,7 @@ index 52b1b1b..c79df8e 100644
  		text_pos.x = (surface->w - MENU_ZONE_WIDTH)/2 + (MENU_ZONE_WIDTH - text_surface->w)/2;
  		text_pos.y = surface->h - MENU_ZONE_HEIGHT/2 - text_surface->h/2;
  		SDL_BlitSurface(text_surface, NULL, surface, &text_pos);
-@@ -343,7 +448,7 @@ void FunkeyMenu::add_menu_zone(ENUM_MENU_TYPE menu_type){
+@@ -343,7 +457,7 @@ void FunkeyMenu::add_menu_zone(ENUM_MENU_TYPE menu_type){
  	case MENU_TYPE_USB:
  		MENU_DEBUG_PRINTF("Init MENU_TYPE_USB\n");
  		/// ------ Text ------
@@ -205,7 +214,7 @@ index 52b1b1b..c79df8e 100644
  		text_pos.x = (surface->w - MENU_ZONE_WIDTH)/2 + (MENU_ZONE_WIDTH - text_surface->w)/2;
  		text_pos.y = surface->h - MENU_ZONE_HEIGHT/2 - text_surface->h/2;
  		SDL_BlitSurface(text_surface, NULL, surface, &text_pos);*/
-@@ -351,12 +456,12 @@ void FunkeyMenu::add_menu_zone(ENUM_MENU_TYPE menu_type){
+@@ -351,12 +465,12 @@ void FunkeyMenu::add_menu_zone(ENUM_MENU_TYPE menu_type){
  	case MENU_TYPE_LAUNCHER:
  		MENU_DEBUG_PRINTF("Init MENU_TYPE_LAUNCHER\n");
  		/// ------ Text ------
@@ -220,7 +229,7 @@ index 52b1b1b..c79df8e 100644
  		text_pos.x = (surface->w - MENU_ZONE_WIDTH)/2 + (MENU_ZONE_WIDTH - text_surface->w)/2;
  		text_pos.y = surface->h - MENU_ZONE_HEIGHT/2 - text_surface->h/2;
  		SDL_BlitSurface(text_surface, NULL, surface, &text_pos);
-@@ -364,7 +469,7 @@ void FunkeyMenu::add_menu_zone(ENUM_MENU_TYPE menu_type){
+@@ -364,7 +478,7 @@ void FunkeyMenu::add_menu_zone(ENUM_MENU_TYPE menu_type){
  	case MENU_TYPE_POWERDOWN:
  		MENU_DEBUG_PRINTF("Init MENU_TYPE_POWERDOWN\n");
  		/// ------ Text ------
@@ -229,7 +238,7 @@ index 52b1b1b..c79df8e 100644
  		text_pos.x = (surface->w - MENU_ZONE_WIDTH)/2 + (MENU_ZONE_WIDTH - text_surface->w)/2;
  		text_pos.y = surface->h - MENU_ZONE_HEIGHT/2 - text_surface->h/2;
  		SDL_BlitSurface(text_surface, NULL, surface, &text_pos);
-@@ -534,19 +639,19 @@ void FunkeyMenu::menu_screen_refresh(int menuItem, int prevItem, int scroll, uin
+@@ -534,19 +648,19 @@ void FunkeyMenu::menu_screen_refresh(int menuItem, int prevItem, int scroll, uin
  		case MENU_TYPE_SAVE:
  			/// ---- Write slot -----
  			sprintf(text_tmp, "IN SLOT   < %d >", savestate_slot+1);
@@ -252,7 +261,7 @@ index 52b1b1b..c79df8e 100644
  				}
  				else{
  					/// ---- Write current Save state ----
-@@ -560,19 +665,19 @@ void FunkeyMenu::menu_screen_refresh(int menuItem, int prevItem, int scroll, uin
+@@ -560,19 +674,19 @@ void FunkeyMenu::menu_screen_refresh(int menuItem, int prevItem, int scroll, uin
  		case MENU_TYPE_LOAD:
  			/// ---- Write slot -----
  			sprintf(text_tmp, "FROM SLOT   < %d >", savestate_slot+1);
@@ -275,7 +284,7 @@ index 52b1b1b..c79df8e 100644
  				}
  				else{
  					/// ---- Write current Load state ----
-@@ -585,7 +690,8 @@ void FunkeyMenu::menu_screen_refresh(int menuItem, int prevItem, int scroll, uin
+@@ -585,7 +699,8 @@ void FunkeyMenu::menu_screen_refresh(int menuItem, int prevItem, int scroll, uin
  
  		case MENU_TYPE_ASPECT_RATIO:
  			sprintf(text_tmp, "<   %s   >", aspect_ratio_name[aspect_ratio]);
@@ -285,7 +294,7 @@ index 52b1b1b..c79df8e 100644
  			text_pos.x = (draw_screen->w - MENU_ZONE_WIDTH)/2 + (MENU_ZONE_WIDTH - text_surface->w)/2;
  			text_pos.y = draw_screen->h - MENU_ZONE_HEIGHT/2 - text_surface->h/2 + padding_y_from_center_menu_zone;
  			SDL_BlitSurface(text_surface, NULL, draw_screen, &text_pos);
-@@ -594,21 +700,21 @@ void FunkeyMenu::menu_screen_refresh(int menuItem, int prevItem, int scroll, uin
+@@ -594,21 +709,21 @@ void FunkeyMenu::menu_screen_refresh(int menuItem, int prevItem, int scroll, uin
  		case MENU_TYPE_USB:
  			/// ---- Write slot -----
  			sprintf(text_tmp, "%s USB", usb_sharing?"EJECT":"MOUNT");
@@ -310,7 +319,7 @@ index 52b1b1b..c79df8e 100644
  				text_pos.x = (draw_screen->w - MENU_ZONE_WIDTH)/2 + (MENU_ZONE_WIDTH - text_surface->w)/2;
  				text_pos.y = draw_screen->h - MENU_ZONE_HEIGHT/2 - text_surface->h/2 + 2*padding_y_from_center_menu_zone;
  				SDL_BlitSurface(text_surface, NULL, draw_screen, &text_pos);
-@@ -621,14 +727,14 @@ void FunkeyMenu::menu_screen_refresh(int menuItem, int prevItem, int scroll, uin
+@@ -621,14 +736,14 @@ void FunkeyMenu::menu_screen_refresh(int menuItem, int prevItem, int scroll, uin
  		case MENU_TYPE_LAUNCHER:
  			if(menu_action){
  				sprintf(text_tmp, "In progress...");
@@ -327,7 +336,7 @@ index 52b1b1b..c79df8e 100644
  				text_pos.x = (draw_screen->w - MENU_ZONE_WIDTH)/2 + (MENU_ZONE_WIDTH - text_surface->w)/2;
  				text_pos.y = draw_screen->h - MENU_ZONE_HEIGHT/2 - text_surface->h/2 + 2*padding_y_from_center_menu_zone;
  				SDL_BlitSurface(text_surface, NULL, draw_screen, &text_pos);
-@@ -639,7 +745,7 @@ void FunkeyMenu::menu_screen_refresh(int menuItem, int prevItem, int scroll, uin
+@@ -639,7 +754,7 @@ void FunkeyMenu::menu_screen_refresh(int menuItem, int prevItem, int scroll, uin
  		case MENU_TYPE_POWERDOWN:
  			if(menu_action){
  				sprintf(text_tmp, "Shutting down...");
@@ -336,7 +345,7 @@ index 52b1b1b..c79df8e 100644
  				text_pos.x = (draw_screen->w - MENU_ZONE_WIDTH)/2 + (MENU_ZONE_WIDTH - text_surface->w)/2;
  				text_pos.y = draw_screen->h - MENU_ZONE_HEIGHT/2 - text_surface->h/2 + 2*padding_y_from_center_menu_zone;
  				SDL_BlitSurface(text_surface, NULL, draw_screen, &text_pos);
-@@ -647,7 +753,7 @@ void FunkeyMenu::menu_screen_refresh(int menuItem, int prevItem, int scroll, uin
+@@ -647,7 +762,7 @@ void FunkeyMenu::menu_screen_refresh(int menuItem, int prevItem, int scroll, uin
  			else{
  				if(menu_confirmation){
  					sprintf(text_tmp, "Are you sure ?");
