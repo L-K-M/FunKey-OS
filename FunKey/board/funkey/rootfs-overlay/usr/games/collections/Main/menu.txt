@@ -1,4 +1,5 @@
 Favorites
+Recently Played
 Game Boy
 Game Boy Color
 Game Boy Advance

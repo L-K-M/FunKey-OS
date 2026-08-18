@@ -1,6 +1,7 @@
 config BR2_PACKAGE_RETROFE
 	bool "RetroFE retro game front-end"
 	default y
+	select BR2_PACKAGE_FONTS_DROID
 	select BR2_PACKAGE_GSTREAMER1
 	select BR2_PACKAGE_GST1_PLUGINS_BASE
 	select BR2_PACKAGE_LIBGLIB2

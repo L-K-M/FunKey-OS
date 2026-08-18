@@ -1,0 +1,480 @@
+diff --git a/RetroFE/Source/CMakeLists.txt b/RetroFE/Source/CMakeLists.txt
+index 32e8454..d5680b5 100755
+--- a/RetroFE/Source/CMakeLists.txt
++++ b/RetroFE/Source/CMakeLists.txt
+@@ -129,6 +129,7 @@ set(RETROFE_HEADERS
+ 	"${RETROFE_DIR}/Source/Collection/CollectionInfo.h"
+ 	"${RETROFE_DIR}/Source/Collection/CollectionInfoBuilder.h"
+ 	"${RETROFE_DIR}/Source/Collection/Item.h"
++	"${RETROFE_DIR}/Source/Collection/RecentlyPlayed.h"
+ 	"${RETROFE_DIR}/Source/Collection/MenuParser.h"
+ 	"${RETROFE_DIR}/Source/Control/UserInput.h"
+ 	"${RETROFE_DIR}/Source/Control/InputHandler.h"
+@@ -184,6 +185,7 @@ set(RETROFE_SOURCES
+ 	"${RETROFE_DIR}/Source/Collection/CollectionInfo.cpp"
+ 	"${RETROFE_DIR}/Source/Collection/CollectionInfoBuilder.cpp"
+ 	"${RETROFE_DIR}/Source/Collection/Item.cpp"
++	"${RETROFE_DIR}/Source/Collection/RecentlyPlayed.cpp"
+ 	"${RETROFE_DIR}/Source/Collection/MenuParser.cpp"
+ 	"${RETROFE_DIR}/Source/Control/UserInput.cpp"
+ 	"${RETROFE_DIR}/Source/Control/JoyAxisHandler.cpp"
+diff --git a/RetroFE/Source/Collection/RecentlyPlayed.cpp b/RetroFE/Source/Collection/RecentlyPlayed.cpp
+new file mode 100644
+index 0000000..d909f57
+--- /dev/null
++++ b/RetroFE/Source/Collection/RecentlyPlayed.cpp
+@@ -0,0 +1,262 @@
++/* This file is part of RetroFE.
++ *
++ * RetroFE is free software: you can redistribute it and/or modify
++ * it under the terms of the GNU General Public License as published by
++ * the Free Software Foundation, either version 3 of the License, or
++ * (at your option) any later version.
++ *
++ * RetroFE is distributed in the hope that it will be useful,
++ * but WITHOUT ANY WARRANTY; without even the implied warranty of
++ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
++ * GNU General Public License for more details.
++ *
++ * You should have received a copy of the GNU General Public License
++ * along with RetroFE.  If not, see <http://www.gnu.org/licenses/>.
++ */
++
++#include "RecentlyPlayed.h"
++#include "CollectionInfo.h"
++#include "Item.h"
++#include "../Database/Configuration.h"
++#include "../Utility/Utils.h"
++#include "../Utility/Log.h"
++#include <fstream>
++#include <sys/stat.h>
++#include <sys/types.h>
++
++#if defined(__linux) || defined(__APPLE__)
++#include <fcntl.h>
++#include <unistd.h>
++#include <cstdio>
++#endif
++
++const std::string RecentlyPlayed::collectionName = "Recently Played";
++
++// Twenty is what the carousel can be scrolled through without the list stopping
++// being "recent". The file is rewritten on every launch, so the cost of a
++// larger number is paid on the critical path of starting a game.
++const size_t RecentlyPlayed::maxEntries = 20;
++
++static bool makeDirectory(const std::string &dir)
++{
++#if defined(_WIN32)
++    if(mkdir(dir.c_str()) == 0) return true;
++#else
++    if(mkdir(dir.c_str(), 0755) == 0) return true;
++#endif
++    // Already there is the common case, not a failure.
++    struct stat info;
++    return stat(dir.c_str(), &info) == 0 && (info.st_mode & S_IFDIR);
++}
++
++static bool makeDirectoryRecursive(const std::string &dir)
++{
++    // Start at 1 so a leading slash is not mistaken for an empty component.
++    std::string::size_type position = dir.find_first_of("/\\", 1);
++
++    while(position != std::string::npos)
++    {
++        if(!makeDirectory(dir.substr(0, position)))
++        {
++            return false;
++        }
++        position = dir.find_first_of("/\\", position + 1);
++    }
++
++    return makeDirectory(dir);
++}
++
++std::string RecentlyPlayed::listPath()
++{
++    return Utils::combinePath(Configuration::userPath, "collections", collectionName, "recent.txt");
++}
++
++// Stored as the "_<collection>:<name>" form that favorites.txt already uses for
++// a game belonging to another collection, so both files read the same way and
++// neither needs a format of its own.
++std::vector<RecentlyPlayed::Entry> RecentlyPlayed::load()
++{
++    std::vector<Entry> entries;
++
++    if(Configuration::userPath.empty())
++    {
++        return entries;
++    }
++
++    std::ifstream stream(listPath().c_str());
++    if(!stream.good())
++    {
++        return entries;
++    }
++
++    std::string line;
++    while(std::getline(stream, line) && entries.size() < maxEntries)
++    {
++        // Tolerate the CRLF a card edited on Windows comes back with.
++        while(!line.empty() && (line[line.size() - 1] == '\r' || line[line.size() - 1] == '\n'))
++        {
++            line.erase(line.size() - 1);
++        }
++
++        if(line.empty() || line[0] != '_')
++        {
++            continue;
++        }
++
++        std::string::size_type separator = line.find(":");
++        if(separator == std::string::npos || separator < 2)
++        {
++            continue;
++        }
++
++        std::string collection = line.substr(1, separator - 1);
++        std::string name       = line.substr(separator + 1);
++
++        if(!collection.empty() && !name.empty())
++        {
++            entries.push_back(Entry(collection, name));
++        }
++    }
++
++    return entries;
++}
++
++std::set<std::string> RecentlyPlayed::collections()
++{
++    std::set<std::string> names;
++    std::vector<Entry> entries = load();
++
++    for(std::vector<Entry>::iterator it = entries.begin(); it != entries.end(); it++)
++    {
++        names.insert(it->first);
++    }
++
++    return names;
++}
++
++bool RecentlyPlayed::save(const std::vector<Entry> &entries)
++{
++    std::string dir  = Utils::combinePath(Configuration::userPath, "collections", collectionName);
++    std::string file = listPath();
++
++    if(!makeDirectoryRecursive(dir))
++    {
++        Logger::write(Logger::ZONE_WARNING, "RecentlyPlayed", "Could not create directory " + dir);
++        return false;
++    }
++
++    std::ofstream filestream;
++
++#if !defined(_WIN32)
++    // Written to a sibling and renamed into place, for the same reason
++    // favorites.txt is: a handheld is switched off whenever the user feels like
++    // it, and a write cut in half would leave a truncated list behind. rename()
++    // over an existing target is atomic on the FAT share partition, so the file
++    // is always either the old list or the new one.
++    std::string tmp = file + ".tmp";
++    filestream.open(tmp.c_str());
++#else
++    filestream.open(file.c_str());
++#endif
++
++    if(!filestream.is_open())
++    {
++        Logger::write(Logger::ZONE_WARNING, "RecentlyPlayed", "Could not open " + file + " for writing");
++        return false;
++    }
++
++    for(std::vector<Entry>::const_iterator it = entries.begin(); it != entries.end(); it++)
++    {
++        filestream << "_" << it->first << ":" << it->second << std::endl;
++    }
++
++    filestream.close();
++
++    // ofstream does not throw on write errors, so ask the stream rather than
++    // assume the bytes landed.
++    if(!filestream.good())
++    {
++        Logger::write(Logger::ZONE_WARNING, "RecentlyPlayed", "Failed writing " + file);
++        return false;
++    }
++
++#if !defined(_WIN32)
++    // Flush before the swap, so the rename cannot publish a file whose contents
++    // are still only in the page cache when the power goes.
++    bool flushed = false;
++    int fd = open(tmp.c_str(), O_RDONLY);
++    if(fd >= 0)
++    {
++        flushed = (fsync(fd) == 0);
++        close(fd);
++    }
++
++    if(!flushed || std::rename(tmp.c_str(), file.c_str()) != 0)
++    {
++        Logger::write(Logger::ZONE_WARNING, "RecentlyPlayed", "Could not put " + file + " in place");
++        std::remove(tmp.c_str());
++        return false;
++    }
++#endif
++
++    return true;
++}
++
++void RecentlyPlayed::record(Item *item)
++{
++    if(!item || !item->collectionInfo)
++    {
++        return;
++    }
++
++    // As with favorites, refusing beats writing onto the read-only rootfs at a
++    // path that was meant to be under the user partition.
++    if(Configuration::userPath.empty())
++    {
++        Logger::write(Logger::ZONE_WARNING, "RecentlyPlayed", "Not recording play: user path is not set");
++        return;
++    }
++
++    // The system the game belongs to, never the aggregate menu it was picked
++    // from: an item merged into Favorites or into this list still points at the
++    // collection that built it, which is the one that can launch it again.
++    Entry played(item->collectionInfo->name, item->name);
++
++    if(played.first.empty() || played.second.empty())
++    {
++        return;
++    }
++
++    // A name carrying the separator would be read back as a different game in a
++    // different collection, so it is better not to record it than to record it
++    // wrongly. A ROM filename with a colon cannot exist on the FAT share
++    // partition in the first place.
++    if(played.second.find(":") != std::string::npos || played.first.find(":") != std::string::npos)
++    {
++        Logger::write(Logger::ZONE_INFO, "RecentlyPlayed", "Not recording \"" + played.second + "\": name contains a colon");
++        return;
++    }
++
++    std::vector<Entry> entries = load();
++    std::vector<Entry> updated;
++    updated.push_back(played);
++
++    // Replaying a game moves it to the top rather than appearing twice.
++    for(std::vector<Entry>::iterator it = entries.begin(); it != entries.end(); it++)
++    {
++        if(*it == played)
++        {
++            continue;
++        }
++        if(updated.size() >= maxEntries)
++        {
++            break;
++        }
++        updated.push_back(*it);
++    }
++
++    if(save(updated))
++    {
++        Logger::write(Logger::ZONE_INFO, "RecentlyPlayed", "Recorded " + played.first + " / " + played.second);
++    }
++}
+diff --git a/RetroFE/Source/Collection/RecentlyPlayed.h b/RetroFE/Source/Collection/RecentlyPlayed.h
+new file mode 100644
+index 0000000..245bcc2
+--- /dev/null
++++ b/RetroFE/Source/Collection/RecentlyPlayed.h
+@@ -0,0 +1,67 @@
++/* This file is part of RetroFE.
++ *
++ * RetroFE is free software: you can redistribute it and/or modify
++ * it under the terms of the GNU General Public License as published by
++ * the Free Software Foundation, either version 3 of the License, or
++ * (at your option) any later version.
++ *
++ * RetroFE is distributed in the hope that it will be useful,
++ * but WITHOUT ANY WARRANTY; without even the implied warranty of
++ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
++ * GNU General Public License for more details.
++ *
++ * You should have received a copy of the GNU General Public License
++ * along with RetroFE.  If not, see <http://www.gnu.org/licenses/>.
++ */
++#pragma once
++
++#include <string>
++#include <utility>
++#include <set>
++#include <vector>
++
++class Item;
++
++// The games most recently launched, newest first.
++//
++// Favorites are kept per system so that each system's favorites.txt stays the
++// single source of truth for the games inside it. Recency cannot be stored that
++// way: the order is global, and rebuilding one order out of several files would
++// mean writing a timestamp beside every entry and merging them on every menu
++// open. Here one ordered file is both the truth and the order, and the position
++// of a line is the only thing that has to be right.
++//
++// It sits beside the per-system playlist directories rather than inside one,
++// because addPlaylists() loads every .txt it finds in a playlists/ directory
++// into a std::map keyed by name -- which would sort the list alphabetically and
++// so discard the single thing it exists to record.
++class RecentlyPlayed
++{
++public:
++    // <collection name, item name>. The collection is the system the game
++    // belongs to and is launched with, never the aggregate it was picked from.
++    typedef std::pair<std::string, std::string> Entry;
++
++    // Moves item to the front of the list, drops any older entry naming the
++    // same game, truncates to maxEntries and rewrites the file. Every failure
++    // is logged and none is fatal: a console that cannot write its play history
++    // must still launch the game the user asked for.
++    static void record(Item *item);
++
++    // The list, newest first. Empty when there is no file yet, which is the
++    // normal state of a console nobody has played.
++    static std::vector<Entry> load();
++
++    // The systems named in the list. getCollection() uses this to skip building
++    // subcollections that cannot contribute a single game, the way
++    // collectionHasFavorites() does for Favorites -- building one costs a scan
++    // of that system's whole ROM directory.
++    static std::set<std::string> collections();
++
++    static const std::string collectionName;
++    static const size_t maxEntries;
++
++private:
++    static std::string listPath();
++    static bool save(const std::vector<Entry> &entries);
++};
+diff --git a/RetroFE/Source/RetroFE.cpp b/RetroFE/Source/RetroFE.cpp
+index 6387e0a..d9f2d25 100755
+--- a/RetroFE/Source/RetroFE.cpp
++++ b/RetroFE/Source/RetroFE.cpp
+@@ -20,6 +20,7 @@
+ #include "Collection/CollectionInfo.h"
+ #include "Database/Configuration.h"
+ #include "Collection/Item.h"
++#include "Collection/RecentlyPlayed.h"
+ #include "Execute/Launcher.h"
+ #include "Menu/Menu.h"
+ #include "Menu/MenuMode.h"
+@@ -793,6 +794,11 @@ void RetroFE::run( )
+             {
+                 nextPageItem_ = currentPage_->getSelectedItem( );
+                 launchEnter( );
++                // Recorded before the game runs rather than after it returns:
++                // the console is switched off mid-game often enough that
++                // "played" has to mean "started", and the write is one small
++                // file on a partition that is about to go idle anyway.
++                RecentlyPlayed::record( nextPageItem_ );
+                 l.run(nextPageItem_->collectionInfo->name, nextPageItem_);
+ 
+                 launchExit( );
+@@ -1508,6 +1514,18 @@ CollectionInfo *RetroFE::getCollection(std::string collectionName)
+     bool favoritesOnly = false;
+     config_.getProperty( "collections." + collectionName + ".list.favoritesOnly", favoritesOnly );
+ 
++    // Same idea for the Recently Played menu, and the same reason: building a
++    // subcollection means scanning that system's whole ROM directory, and a
++    // system nobody has played anything from contributes nothing to the list.
++    // Read once here, not once per .sub file.
++    bool recentlyPlayed = false;
++    config_.getProperty( "collections." + collectionName + ".list.recentlyPlayed", recentlyPlayed );
++    std::set<std::string> recentCollections;
++    if ( recentlyPlayed )
++    {
++        recentCollections = RecentlyPlayed::collections( );
++    }
++
+     std::string path = Utils::combinePath( Configuration::absolutePath, "collections", collectionName );
+     dp = opendir( path.c_str( ) );
+ 
+@@ -1546,6 +1564,12 @@ CollectionInfo *RetroFE::getCollection(std::string collectionName)
+                     continue;
+                 }
+ 
++                if ( recentlyPlayed && !recentCollections.count( basename ) )
++                {
++                    Logger::write( Logger::ZONE_INFO, "RetroFE", "Skipping subcollection with nothing recently played: " + basename );
++                    continue;
++                }
++
+                 Logger::write( Logger::ZONE_INFO, "RetroFE", "Loading subcollection into menu: " + basename );
+ 
+                 CollectionInfo *subcollection = cib.buildCollection( basename, collectionName );
+@@ -1652,6 +1676,62 @@ CollectionInfo *RetroFE::getCollection(std::string collectionName)
+         }
+     }
+ 
++    // The Recently Played menu lists the games its file names, in the order it
++    // names them: the one menu on the console where sorting alphabetically
++    // would throw away the only thing being recorded. list.menuSort is off for
++    // this collection so sortItems() never runs, and sortPlaylists() below only
++    // reorders the other playlists to follow "all", so it leaves this alone.
++    if ( recentlyPlayed )
++    {
++        std::vector<RecentlyPlayed::Entry> recent = RecentlyPlayed::load( );
++
++        // Indexed in one pass rather than searched: resolving twenty entries by
++        // walking every merged game apiece is twenty scans of a list that, on a
++        // full card, is most of the library.
++        std::map<RecentlyPlayed::Entry, Item *> byName;
++        for ( std::vector<Item *>::iterator it = collection->items.begin( ); it != collection->items.end( ); it++ )
++        {
++            if ( (*it)->collectionInfo )
++            {
++                // insert() and not operator[]: where a name occurs twice the
++                // first wins, matching the order the subcollections were merged.
++                byName.insert( std::make_pair( RecentlyPlayed::Entry( (*it)->collectionInfo->name, (*it)->name ), *it ) );
++            }
++        }
++
++        std::vector<Item *> shown;
++        for ( std::vector<RecentlyPlayed::Entry>::iterator it = recent.begin( ); it != recent.end( ); it++ )
++        {
++            std::map<RecentlyPlayed::Entry, Item *>::iterator found = byName.find( *it );
++
++            // A game whose ROM has since left the card simply is not shown. Its
++            // line stays in the file until it falls off the end, so putting the
++            // card back puts the game back too.
++            if ( found != byName.end( ) )
++            {
++                shown.push_back( found->second );
++            }
++        }
++
++        CollectionInfo::Playlists_T::iterator all = collection->playlists.find( "all" );
++
++        if ( all != collection->playlists.end( ) && all->second )
++        {
++            // The ownership rule the favourites narrowing above explains applies
++            // here too: items owns every merged game and the destructor frees it
++            // element by element, so the menu is handed a vector of its own
++            // rather than a narrowed items.
++            if ( all->second == &collection->items )
++            {
++                all->second = new std::vector<Item *>( shown );
++            }
++            else
++            {
++                *(all->second) = shown;
++            }
++        }
++    }
++
+     collection->sortPlaylists( );
+ 
+     // Add extra info, if available

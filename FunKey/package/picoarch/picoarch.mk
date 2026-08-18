@@ -10,7 +10,7 @@ PICOARCH_SITE = https://github.com/DrUm78/picoarch.git
 PICOARCH_LICENSE = GPL-2+, LGPL-2.1+, MAME
 PICOARCH_LICENSE_FILES = LICENSE
 
-PICOARCH_DEPENDENCIES = sdl sdl_image sdl_ttf
+PICOARCH_DEPENDENCIES = sdl sdl_image sdl_ttf fonts-droid
 
 PICOARCH_SDL_CFLAGS += $(shell $(STAGING_DIR)/usr/bin/sdl-config --cflags)
 PICOARCH_SDL_LIBS   += $(shell $(STAGING_DIR)/usr/bin/sdl-config --libs)

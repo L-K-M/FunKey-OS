@@ -1,0 +1,560 @@
+diff --git a/funkey/fk_menu.c b/funkey/fk_menu.c
+index 4016b0c..e3c93dc 100644
+--- a/funkey/fk_menu.c
++++ b/funkey/fk_menu.c
+@@ -75,6 +75,37 @@ extern int video_height;
+ #define MENU_FONT_SIZE_INFO         16
+ #define MENU_FONT_NAME_SMALL_INFO   "/usr/games/menu_resources/OpenSans-Regular.ttf"
+ #define MENU_FONT_SIZE_SMALL_INFO   13
++/* fonts-droid installs into /usr/share/fonts/droid/, and the rootfs overlay
++ * carries a "truetype -> ." symlink beside it, so this path resolves to that
++ * same file. Do not "correct" it to the install path: replacing that symlink
++ * with a real directory is what makes target-finalize's rsync fail. The "Full"
++ * face is deliberate -- the package ships both, and the plain one covers fewer
++ * code points. */
++#define MENU_FONT_NAME_CJK          "/usr/share/fonts/truetype/droid/DroidSansFallbackFull.ttf"
++
++/* A line has to fit the white zone background, not the screen. The background
++ * PNG is MENU_BG_SQUARE_WIDTH across while the text is centred over the full
++ * MENU_ZONE_WIDTH, so anything wider than the box spills past both of its
++ * edges with nothing behind it. The English was already sized to fill that
++ * box -- POWERDOWN alone very nearly does -- so appending a gloss at the same
++ * size overflows by design, not by accident. */
++#define MENU_TEXT_MAX_WIDTH         (MENU_BG_SQUARE_WIDTH - 8)
++
++/* Latin and CJK point sizes, largest first. A bilingual line is rendered at the
++ * largest rung that fits MENU_TEXT_MAX_WIDTH, so a short title keeps the size
++ * the menu has always used and only the long ones step down. Rung 0 and rung 2
++ * carry MENU_FONT_SIZE_TITLE and MENU_FONT_SIZE_INFO, which is why titles start
++ * at the first and the smaller lines beneath them at the third. */
++static const int menu_font_tiers[][2] = {
++	{22, 18},
++	{19, 15},
++	{16, 13},
++	{14, 12},
++	{12, 11},
++};
++#define MENU_NB_FONT_TIERS  ((int)(sizeof(menu_font_tiers)/sizeof(menu_font_tiers[0])))
++#define MENU_TIER_TITLE     0
++#define MENU_TIER_INFO      2
+ #define MENU_PNG_BG_PATH            "/usr/games/menu_resources/zone_bg.png"
+ #define MENU_PNG_ARROW_TOP_PATH     "/usr/games/menu_resources/arrow_top.png"
+ #define MENU_PNG_ARROW_BOTTOM_PATH  "/usr/games/menu_resources/arrow_bottom.png"
+@@ -98,6 +129,14 @@ static int backup_key_repeat_interval=0;
+ static TTF_Font *menu_title_font = NULL;
+ static TTF_Font *menu_info_font = NULL;
+ static TTF_Font *menu_small_info_font = NULL;
++static TTF_Font *menu_tier_latin_font[MENU_NB_FONT_TIERS] = {NULL};
++static TTF_Font *menu_tier_cjk_font[MENU_NB_FONT_TIERS] = {NULL};
++
++/* Non-owning aliases of the two faces the menu opened before any of this. The
++ * render helpers below are file-static free functions, so where these fonts are
++ * class members they are out of reach unqualified; init() copies them here. */
++static TTF_Font *menu_nominal_title_font = NULL;
++static TTF_Font *menu_nominal_info_font = NULL;
+ static SDL_Surface *img_arrow_top = NULL;
+ static SDL_Surface *img_arrow_bottom = NULL;
+ static SDL_Surface ** menu_zone_surfaces = NULL;
+@@ -156,6 +195,152 @@ static int read_write = 0;
+ 
+ /// -------------- FUNCTIONS IMPLEMENTATION --------------
+ 
++/* This helper, and every gloss handed to it, is one of three copies. The FunKey
++ * menu exists three times over -- src/funkeymenu.cpp in gmenu2x (the launcher
++ * menu), funkey/fk_menu.c in picoarch (the in-game menu), and
++ * Source/Menu/MenuMode.cpp in RetroFE (the library menu) -- in three trees
++ * patched independently, so nothing here is shared at build time and only
++ * matching edits keep them in step. Change a gloss in one and the console shows
++ * different Chinese depending on which menu was opened. 3.1.2 shipped precisely
++ * that, having translated the gmenu2x copy alone, which is the one a default
++ * install never draws.
++ *
++ * One TTF_Font is one face and SDL_ttf does not fall back between them, so a
++ * line that mixes scripts cannot come out of a single render call: OpenSans has
++ * no Chinese, and Droid Sans Fallback has no bold Latin. Render each half with
++ * the font that has it and lay the two side by side.
++ *
++ * The halves also need different calls. TTF_RenderText_* reads its argument as
++ * Latin-1, which is right for the English and would make mojibake of UTF-8
++ * Chinese, so the Chinese goes through TTF_RenderUTF8_* instead.
++ *
++ * cjk may be NULL -- for a proper noun, or for a string carrying no useful
++ * gloss -- and a missing font is not fatal: either way the English is returned
++ * on its own. The caller frees the result exactly as it freed the old one. */
++static SDL_Surface *render_bilingual(TTF_Font *latin_font, TTF_Font *cjk_font,
++		const char *latin, const char *cjk, SDL_Color color)
++{
++	if(!latin_font){
++		return NULL;
++	}
++
++	SDL_Surface *latin_surface = TTF_RenderText_Blended(latin_font, latin, color);
++	if(!latin_surface || !cjk || !cjk_font){
++		return latin_surface;
++	}
++
++	SDL_Surface *cjk_surface = TTF_RenderUTF8_Blended(cjk_font, cjk, color);
++	if(!cjk_surface){
++		MENU_ERROR_PRINTF("ERROR in render_bilingual: could not render %s, %s\n", cjk, TTF_GetError());
++		return latin_surface;
++	}
++
++	/* Sat on a shared baseline, not centred against each other: the two fonts
++	 * are different sizes, and centring leaves the Chinese visibly riding above
++	 * the Latin it is annotating. */
++	int gap = TTF_FontHeight(latin_font)/3;
++	int latin_y = 0;
++	int cjk_y = TTF_FontAscent(latin_font) - TTF_FontAscent(cjk_font);
++	if(cjk_y < 0){
++		latin_y = -cjk_y;
++		cjk_y = 0;
++	}
++	int w = latin_surface->w + gap + cjk_surface->w;
++	int h = (latin_y + latin_surface->h > cjk_y + cjk_surface->h)?
++			latin_y + latin_surface->h : cjk_y + cjk_surface->h;
++	SDL_Surface *line = SDL_CreateRGBSurface(SDL_SWSURFACE, w, h, 32,
++			latin_surface->format->Rmask, latin_surface->format->Gmask,
++			latin_surface->format->Bmask, latin_surface->format->Amask);
++	if(!line){
++		MENU_ERROR_PRINTF("ERROR in render_bilingual: %s\n", SDL_GetError());
++		SDL_FreeSurface(cjk_surface);
++		return latin_surface;
++	}
++	SDL_FillRect(line, NULL, SDL_MapRGBA(line->format, 0, 0, 0, 0));
++
++	/* Copied rather than blended. Blending a surface that carries per-pixel
++	 * alpha onto a fully transparent one leaves the destination transparent,
++	 * and the glyphs never appear. */
++	SDL_SetAlpha(latin_surface, 0, SDL_ALPHA_OPAQUE);
++	SDL_SetAlpha(cjk_surface, 0, SDL_ALPHA_OPAQUE);
++
++	SDL_Rect pos;
++	pos.x = 0;
++	pos.y = latin_y;
++	SDL_BlitSurface(latin_surface, NULL, line, &pos);
++	pos.x = latin_surface->w + gap;
++	pos.y = cjk_y;
++	SDL_BlitSurface(cjk_surface, NULL, line, &pos);
++
++	SDL_FreeSurface(latin_surface);
++	SDL_FreeSurface(cjk_surface);
++	return line;
++}
++
++/* Walks down the rungs from first_tier and keeps the first line that fits the
++ * zone background. The smallest rung is returned even when it still does not
++ * fit, because a line a few pixels proud of the box beats no line at all. */
++static SDL_Surface *render_fitted(int first_tier, TTF_Font *nominal_font,
++		const char *latin, const char *cjk, SDL_Color color)
++{
++	SDL_Surface *line = NULL;
++	int tier;
++
++	for(tier = first_tier; tier < MENU_NB_FONT_TIERS; tier++){
++		SDL_Surface *candidate = render_bilingual(menu_tier_latin_font[tier],
++				menu_tier_cjk_font[tier], latin, cjk, color);
++		if(!candidate){
++			continue;
++		}
++		if(line){
++			SDL_FreeSurface(line);
++		}
++		line = candidate;
++		if(line->w <= MENU_TEXT_MAX_WIDTH){
++			break;
++		}
++	}
++
++	/* No rung opened at all: fall back to the face the menu used before any of
++	 * this, so a missing font costs the Chinese rather than the menu. */
++	if(!line){
++		line = TTF_RenderText_Blended(nominal_font, latin, color);
++	}
++	return line;
++}
++
++static SDL_Surface *render_menu_title(const char *latin, const char *cjk, SDL_Color color)
++{
++	return render_fitted(MENU_TIER_TITLE, menu_nominal_title_font, latin, cjk, color);
++}
++
++static SDL_Surface *render_menu_info(const char *latin, const char *cjk, SDL_Color color)
++{
++	return render_fitted(MENU_TIER_INFO, menu_nominal_info_font, latin, cjk, color);
++}
++
++/* Keyed on the English rather than on the enum, so that reordering or
++ * respelling the ASPECT_RATIOS list cannot silently pair a ratio with the wrong
++ * gloss. An unrecognised name is not an error -- it just renders untranslated. */
++static const char *aspect_ratio_cjk(const char *name)
++{
++	if(!strcmp(name, "NATIVE"))      return "原始";
++	if(!strcmp(name, "SCALED"))      return "等比";
++	if(!strcmp(name, "STRETCHED"))   return "拉伸";
++	if(!strcmp(name, "STRECHED"))    return "拉伸";
++	if(!strcmp(name, "CROPPED"))     return "裁剪";
++	if(!strcmp(name, "MANUAL"))      return "手动";
++	if(!strcmp(name, "MANUAL ZOOM")) return "手动";
++	return NULL;
++}
++
++static const char *resume_option_cjk(const char *name)
++{
++	if(!strcmp(name, "RESUME GAME")) return "继续";
++	if(!strcmp(name, "NEW GAME"))    return "新游戏";
++	return NULL;
++}
++
+ #if defined(HAS_MENU_VOLUME) || defined(HAS_MENU_BRIGHTNESS)
+ static void draw_progress_bar(SDL_Surface * surface, uint16_t x, uint16_t y, uint16_t width,
+ 		uint16_t height, uint8_t percentage, uint16_t nb_bars)
+@@ -291,7 +476,7 @@ static void add_menu_zone(ENUM_MENU_TYPE menu_type)
+ 	case MENU_TYPE_VOLUME:
+ 		MENU_DEBUG_PRINTF("Init MENU_TYPE_VOLUME\n");
+ 		/// ------ Text ------
+-		text_surface = TTF_RenderText_Blended(menu_title_font, "VOLUME", text_color);
++		text_surface = render_menu_title("VOLUME", "音量", text_color);
+ 		text_pos.x = (surface->w - MENU_ZONE_WIDTH)/2 + (MENU_ZONE_WIDTH - text_surface->w)/2;
+ 		text_pos.y = surface->h - MENU_ZONE_HEIGHT/2 - text_surface->h/2 - padding_y_from_center_menu_zone;
+ 		SDL_BlitSurface(text_surface, NULL, surface, &text_pos);
+@@ -306,7 +491,7 @@ static void add_menu_zone(ENUM_MENU_TYPE menu_type)
+ 	case MENU_TYPE_BRIGHTNESS:
+ 		MENU_DEBUG_PRINTF("Init MENU_TYPE_BRIGHTNESS\n");
+ 		/// ------ Text ------
+-		text_surface = TTF_RenderText_Blended(menu_title_font, "BRIGHTNESS", text_color);
++		text_surface = render_menu_title("BRIGHTNESS", "亮度", text_color);
+ 		text_pos.x = (surface->w - MENU_ZONE_WIDTH)/2 + (MENU_ZONE_WIDTH - text_surface->w)/2;
+ 		text_pos.y = surface->h - MENU_ZONE_HEIGHT/2 - text_surface->h/2 - padding_y_from_center_menu_zone;
+ 		SDL_BlitSurface(text_surface, NULL, surface, &text_pos);
+@@ -321,7 +506,7 @@ static void add_menu_zone(ENUM_MENU_TYPE menu_type)
+ 	case MENU_TYPE_SAVE:
+ 		MENU_DEBUG_PRINTF("Init MENU_TYPE_SAVE\n");
+ 		/// ------ Text ------
+-		text_surface = TTF_RenderText_Blended(menu_title_font, "SAVE", text_color);
++		text_surface = render_menu_title("SAVE", "保存", text_color);
+ 		text_pos.x = (surface->w - MENU_ZONE_WIDTH)/2 + (MENU_ZONE_WIDTH - text_surface->w)/2;
+ 		text_pos.y = surface->h - MENU_ZONE_HEIGHT/2 - text_surface->h/2 - padding_y_from_center_menu_zone*2;
+ 		SDL_BlitSurface(text_surface, NULL, surface, &text_pos);
+@@ -331,7 +516,7 @@ static void add_menu_zone(ENUM_MENU_TYPE menu_type)
+ 	case MENU_TYPE_LOAD:
+ 		MENU_DEBUG_PRINTF("Init MENU_TYPE_LOAD\n");
+ 		/// ------ Text ------
+-		text_surface = TTF_RenderText_Blended(menu_title_font, "LOAD", text_color);
++		text_surface = render_menu_title("LOAD", "读取", text_color);
+ 		text_pos.x = (surface->w - MENU_ZONE_WIDTH)/2 + (MENU_ZONE_WIDTH - text_surface->w)/2;
+ 		text_pos.y = surface->h - MENU_ZONE_HEIGHT/2 - text_surface->h/2 - padding_y_from_center_menu_zone*2;
+ 		SDL_BlitSurface(text_surface, NULL, surface, &text_pos);
+@@ -341,7 +526,7 @@ static void add_menu_zone(ENUM_MENU_TYPE menu_type)
+ 	case MENU_TYPE_ASPECT_RATIO:
+ 		MENU_DEBUG_PRINTF("Init MENU_TYPE_ASPECT_RATIO\n");
+ 		/// ------ Text ------
+-		text_surface = TTF_RenderText_Blended(menu_title_font, "ASPECT RATIO", text_color);
++		text_surface = render_menu_title("ASPECT RATIO", "比例", text_color);
+ 		text_pos.x = (surface->w - MENU_ZONE_WIDTH)/2 + (MENU_ZONE_WIDTH - text_surface->w)/2;
+ 		text_pos.y = surface->h - MENU_ZONE_HEIGHT/2 - text_surface->h/2 - padding_y_from_center_menu_zone;
+ 		SDL_BlitSurface(text_surface, NULL, surface, &text_pos);
+@@ -351,7 +536,7 @@ static void add_menu_zone(ENUM_MENU_TYPE menu_type)
+ 	case MENU_TYPE_USB:
+ 		MENU_DEBUG_PRINTF("Init MENU_TYPE_USB\n");
+ 		/// ------ Text ------
+-		text_surface = TTF_RenderText_Blended(menu_title_font, "USB", text_color);
++		text_surface = render_menu_title("USB", "存储", text_color);
+ 		text_pos.x = (surface->w - MENU_ZONE_WIDTH)/2 + (MENU_ZONE_WIDTH - text_surface->w)/2;
+ 		text_pos.y = surface->h - MENU_ZONE_HEIGHT/2 - text_surface->h/2;
+ 		SDL_BlitSurface(text_surface, NULL, surface, &text_pos);
+@@ -361,7 +546,7 @@ static void add_menu_zone(ENUM_MENU_TYPE menu_type)
+ 	case MENU_TYPE_THEME:
+ 		MENU_DEBUG_PRINTF("Init MENU_TYPE_THEME\n");
+ 		/// ------ Text ------
+-		text_surface = TTF_RenderText_Blended(menu_title_font, "SET THEME", text_color);
++		text_surface = render_menu_title("SET THEME", "主题", text_color);
+ 		text_pos.x = (surface->w - MENU_ZONE_WIDTH)/2 + (MENU_ZONE_WIDTH - text_surface->w)/2;
+ 		text_pos.y = surface->h - MENU_ZONE_HEIGHT/2 - text_surface->h/2 - padding_y_from_center_menu_zone*2;
+ 		SDL_BlitSurface(text_surface, NULL, surface, &text_pos);
+@@ -371,12 +556,12 @@ static void add_menu_zone(ENUM_MENU_TYPE menu_type)
+ 	case MENU_TYPE_LAUNCHER:
+ 		MENU_DEBUG_PRINTF("Init MENU_TYPE_LAUNCHER\n");
+ 		/// ------ Text ------
+-		text_surface = TTF_RenderText_Blended(menu_title_font, "SET LAUNCHER", text_color);
++		text_surface = render_menu_title("SET LAUNCHER", "启动器", text_color);
+ 		text_pos.x = (surface->w - MENU_ZONE_WIDTH)/2 + (MENU_ZONE_WIDTH - text_surface->w)/2;
+ 		text_pos.y = surface->h - MENU_ZONE_HEIGHT/2 - text_surface->h/2 - padding_y_from_center_menu_zone*2;
+ 		SDL_BlitSurface(text_surface, NULL, surface, &text_pos);
+ 		/// ------ Text ------
+-		text_surface = TTF_RenderText_Blended(menu_title_font, "GMENU2X", text_color);
++		text_surface = render_menu_title("GMENU2X", NULL, text_color);
+ 		text_pos.x = (surface->w - MENU_ZONE_WIDTH)/2 + (MENU_ZONE_WIDTH - text_surface->w)/2;
+ 		text_pos.y = surface->h - MENU_ZONE_HEIGHT/2 - text_surface->h/2;
+ 		SDL_BlitSurface(text_surface, NULL, surface, &text_pos);
+@@ -386,7 +571,7 @@ static void add_menu_zone(ENUM_MENU_TYPE menu_type)
+ 	case MENU_TYPE_RO_RW:
+ 		MENU_DEBUG_PRINTF("Init MENU_TYPE_RO_RW\n");
+ 		/// ------ Text ------
+-		text_surface = TTF_RenderText_Blended(menu_title_font, "SET SYSTEM:", text_color);
++		text_surface = render_menu_title("SET SYSTEM:", "系统", text_color);
+ 		text_pos.x = (surface->w - MENU_ZONE_WIDTH)/2 + (MENU_ZONE_WIDTH - text_surface->w)/2;
+ 		text_pos.y = surface->h - MENU_ZONE_HEIGHT/2 - text_surface->h/2 - padding_y_from_center_menu_zone*2;
+ 		SDL_BlitSurface(text_surface, NULL, surface, &text_pos);
+@@ -396,7 +581,7 @@ static void add_menu_zone(ENUM_MENU_TYPE menu_type)
+ 	case MENU_TYPE_ADVANCED:
+ 		MENU_DEBUG_PRINTF("Init MENU_TYPE_ADVANCED\n");
+ 		/// ------ Text ------
+-		text_surface = TTF_RenderText_Blended(menu_title_font, "ADVANCED", text_color);
++		text_surface = render_menu_title("ADVANCED", "高级", text_color);
+ 		text_pos.x = (surface->w - MENU_ZONE_WIDTH)/2 + (MENU_ZONE_WIDTH - text_surface->w)/2;
+ 		text_pos.y = surface->h - MENU_ZONE_HEIGHT/2 - text_surface->h/2;
+ 		SDL_BlitSurface(text_surface, NULL, surface, &text_pos);
+@@ -406,7 +591,7 @@ static void add_menu_zone(ENUM_MENU_TYPE menu_type)
+ 	case MENU_TYPE_EXIT:
+ 		MENU_DEBUG_PRINTF("Init MENU_TYPE_EXIT\n");
+ 		/// ------ Text ------
+-		text_surface = TTF_RenderText_Blended(menu_title_font, "EXIT GAME", text_color);
++		text_surface = render_menu_title("EXIT GAME", "退出", text_color);
+ 		text_pos.x = (surface->w - MENU_ZONE_WIDTH)/2 + (MENU_ZONE_WIDTH - text_surface->w)/2;
+ 		text_pos.y = surface->h - MENU_ZONE_HEIGHT/2 - text_surface->h/2;
+ 		SDL_BlitSurface(text_surface, NULL, surface, &text_pos);
+@@ -416,7 +601,7 @@ static void add_menu_zone(ENUM_MENU_TYPE menu_type)
+ 	case MENU_TYPE_POWERDOWN:
+ 		MENU_DEBUG_PRINTF("Init MENU_TYPE_POWERDOWN\n");
+ 		/// ------ Text ------
+-		text_surface = TTF_RenderText_Blended(menu_title_font, "POWERDOWN", text_color);
++		text_surface = render_menu_title("POWERDOWN", "关机", text_color);
+ 		text_pos.x = (surface->w - MENU_ZONE_WIDTH)/2 + (MENU_ZONE_WIDTH - text_surface->w)/2;
+ 		text_pos.y = surface->h - MENU_ZONE_HEIGHT/2 - text_surface->h/2;
+ 		SDL_BlitSurface(text_surface, NULL, surface, &text_pos);
+@@ -496,6 +681,21 @@ void FK_InitMenu(void)
+ 	if(!menu_small_info_font){
+ 		MENU_ERROR_PRINTF("ERROR in init_menu_SDL: Could not open menu font %s, %s\n", MENU_FONT_NAME_SMALL_INFO, SDL_GetError());
+ 	}
++	/* Warned about but not required: without these the menu is English only,
++	 * which is worse than the alternative and much better than no menu. */
++	{
++		int tier;
++		for(tier = 0; tier < MENU_NB_FONT_TIERS; tier++){
++			menu_tier_latin_font[tier] = TTF_OpenFont(MENU_FONT_NAME_TITLE, menu_font_tiers[tier][0]);
++			menu_tier_cjk_font[tier] = TTF_OpenFont(MENU_FONT_NAME_CJK, menu_font_tiers[tier][1]);
++			if(!menu_tier_latin_font[tier] || !menu_tier_cjk_font[tier]){
++				MENU_ERROR_PRINTF("WARNING in init_menu_SDL: could not open tier %d (%d/%d), %s\n",
++						tier, menu_font_tiers[tier][0], menu_font_tiers[tier][1], TTF_GetError());
++			}
++		}
++	}
++	menu_nominal_title_font = menu_title_font;
++	menu_nominal_info_font = menu_info_font;
+ 
+ 	/// ------ Load arrows imgs -------
+ 	img_arrow_top = IMG_Load(MENU_PNG_ARROW_TOP_PATH);
+@@ -532,6 +732,21 @@ void FK_EndMenu(void)
+ 	TTF_CloseFont(menu_title_font);
+ 	TTF_CloseFont(menu_info_font);
+ 	TTF_CloseFont(menu_small_info_font);
++	{
++		int tier;
++		for(tier = 0; tier < MENU_NB_FONT_TIERS; tier++){
++			if(menu_tier_latin_font[tier]){
++				TTF_CloseFont(menu_tier_latin_font[tier]);
++				menu_tier_latin_font[tier] = NULL;
++			}
++			if(menu_tier_cjk_font[tier]){
++				TTF_CloseFont(menu_tier_cjk_font[tier]);
++				menu_tier_cjk_font[tier] = NULL;
++			}
++		}
++	}
++	menu_nominal_title_font = NULL;
++	menu_nominal_info_font = NULL;
+ 
+ 	/// ------ Free Surfaces -------
+ 	for(int i=0; i < nb_menu_zones; i++){
+@@ -714,25 +929,25 @@ static void menu_screen_refresh(SDL_Surface *screen, int menuItem, int prevItem,
+ 		case MENU_TYPE_SAVE:
+ 			/// ---- Write slot -----
+ 			sprintf(text_tmp, "IN SLOT   < %d >", state_slot+1);
+-			text_surface = TTF_RenderText_Blended(menu_info_font, text_tmp, text_color);
++			text_surface = render_menu_info(text_tmp, "存档位", text_color);
+ 			text_pos.x = (screen->w - MENU_ZONE_WIDTH)/2 + (MENU_ZONE_WIDTH - text_surface->w)/2;
+ 			text_pos.y = screen->h - MENU_ZONE_HEIGHT/2 - text_surface->h/2;
+ 			SDL_BlitSurface(text_surface, NULL, screen, &text_pos);
+ 
+ 			if(menu_action){
+ 				sprintf(text_tmp, "Saving...");
+-				text_surface = TTF_RenderText_Blended(menu_info_font, text_tmp, text_color);
++				text_surface = render_menu_info(text_tmp, "保存中", text_color);
+ 			}
+ 			else{
+ 				if(menu_confirmation){
+ 					sprintf(text_tmp, "Are you sure?");
+-					text_surface = TTF_RenderText_Blended(menu_info_font, text_tmp, text_color);
++					text_surface = render_menu_info(text_tmp, "确定吗", text_color);
+ 				}
+ 				else{
+ 					if (state_exists(state_slot)) {
+-						text_surface = TTF_RenderText_Blended(menu_info_font, "Used", text_color);
++						text_surface = render_menu_info("Used", "已用", text_color);
+ 					} else {
+-						text_surface = TTF_RenderText_Blended(menu_info_font, "Free", text_color);
++						text_surface = render_menu_info("Free", "空闲", text_color);
+ 					}
+ 				}
+ 			}
+@@ -745,25 +960,25 @@ static void menu_screen_refresh(SDL_Surface *screen, int menuItem, int prevItem,
+ 		case MENU_TYPE_LOAD:
+ 			/// ---- Write slot -----
+ 			sprintf(text_tmp, "FROM SLOT   < %d >", state_slot+1);
+-			text_surface = TTF_RenderText_Blended(menu_info_font, text_tmp, text_color);
++			text_surface = render_menu_info(text_tmp, "读取位", text_color);
+ 			text_pos.x = (screen->w - MENU_ZONE_WIDTH)/2 + (MENU_ZONE_WIDTH - text_surface->w)/2;
+ 			text_pos.y = screen->h - MENU_ZONE_HEIGHT/2 - text_surface->h/2;
+ 			SDL_BlitSurface(text_surface, NULL, screen, &text_pos);
+ 
+ 			if(menu_action){
+ 				sprintf(text_tmp, "Loading...");
+-				text_surface = TTF_RenderText_Blended(menu_info_font, text_tmp, text_color);
++				text_surface = render_menu_info(text_tmp, "读取中", text_color);
+ 			}
+ 			else{
+ 				if(menu_confirmation){
+ 					sprintf(text_tmp, "Are you sure?");
+-					text_surface = TTF_RenderText_Blended(menu_info_font, text_tmp, text_color);
++					text_surface = render_menu_info(text_tmp, "确定吗", text_color);
+ 				}
+ 				else{
+ 					if (state_exists(state_slot)) {
+-						text_surface = TTF_RenderText_Blended(menu_info_font, "Used", text_color);
++						text_surface = render_menu_info("Used", "已用", text_color);
+ 					} else {
+-						text_surface = TTF_RenderText_Blended(menu_info_font, "Free", text_color);
++						text_surface = render_menu_info("Free", "空闲", text_color);
+ 					}
+ 				}
+ 			}
+@@ -775,7 +990,7 @@ static void menu_screen_refresh(SDL_Surface *screen, int menuItem, int prevItem,
+ #ifdef HAS_MENU_ASPECT_RATIO
+ 		case MENU_TYPE_ASPECT_RATIO:
+ 			sprintf(text_tmp, "<   %s   >", aspect_ratio_name[menu_aspect_ratio]);
+-			text_surface = TTF_RenderText_Blended(menu_info_font, text_tmp, text_color);
++			text_surface = render_menu_info(text_tmp, aspect_ratio_cjk(aspect_ratio_name[menu_aspect_ratio]), text_color);
+ 			text_pos.x = (screen->w - MENU_ZONE_WIDTH)/2 + (MENU_ZONE_WIDTH - text_surface->w)/2;
+ 			text_pos.y = screen->h - MENU_ZONE_HEIGHT/2 - text_surface->h/2 + padding_y_from_center_menu_zone;
+ 			SDL_BlitSurface(text_surface, NULL, screen, &text_pos);
+@@ -785,21 +1000,21 @@ static void menu_screen_refresh(SDL_Surface *screen, int menuItem, int prevItem,
+ 		case MENU_TYPE_USB:
+ 			/// ---- Write slot -----
+ 			sprintf(text_tmp, "%s USB", usb_sharing?"EJECT":"MOUNT");
+-			text_surface = TTF_RenderText_Blended(menu_title_font, text_tmp, text_color);
++			text_surface = render_menu_title(text_tmp, usb_sharing?"弹出":"挂载", text_color);
+ 			text_pos.x = (screen->w - MENU_ZONE_WIDTH)/2 + (MENU_ZONE_WIDTH - text_surface->w)/2;
+ 			text_pos.y = screen->h - MENU_ZONE_HEIGHT/2 - text_surface->h/2;
+ 			SDL_BlitSurface(text_surface, NULL, screen, &text_pos);
+ 
+ 			if(menu_action){
+ 				sprintf(text_tmp, "in progress ...");
+-				text_surface = TTF_RenderText_Blended(menu_info_font, text_tmp, text_color);
++				text_surface = render_menu_info(text_tmp, "处理中", text_color);
+ 				text_pos.x = (screen->w - MENU_ZONE_WIDTH)/2 + (MENU_ZONE_WIDTH - text_surface->w)/2;
+ 				text_pos.y = screen->h - MENU_ZONE_HEIGHT/2 - text_surface->h/2 + 2*padding_y_from_center_menu_zone;
+ 				SDL_BlitSurface(text_surface, NULL, screen, &text_pos);
+ 			}
+ 			else if(menu_confirmation){
+ 				sprintf(text_tmp, "Are you sure?");
+-				text_surface = TTF_RenderText_Blended(menu_info_font, text_tmp, text_color);
++				text_surface = render_menu_info(text_tmp, "确定吗", text_color);
+ 				text_pos.x = (screen->w - MENU_ZONE_WIDTH)/2 + (MENU_ZONE_WIDTH - text_surface->w)/2;
+ 				text_pos.y = screen->h - MENU_ZONE_HEIGHT/2 - text_surface->h/2 + 2*padding_y_from_center_menu_zone;
+ 				SDL_BlitSurface(text_surface, NULL, screen, &text_pos);
+@@ -828,14 +1043,14 @@ static void menu_screen_refresh(SDL_Surface *screen, int menuItem, int prevItem,
+ 
+ 			if(menu_action){
+ 				sprintf(text_tmp, "In progress...");
+-				text_surface = TTF_RenderText_Blended(menu_info_font, text_tmp, text_color);
++				text_surface = render_menu_info(text_tmp, "处理中", text_color);
+ 				text_pos.x = (screen->w - MENU_ZONE_WIDTH)/2 + (MENU_ZONE_WIDTH - text_surface->w)/2;
+ 				text_pos.y = screen->h - MENU_ZONE_HEIGHT/2 - text_surface->h/2 + 2*padding_y_from_center_menu_zone;
+ 				SDL_BlitSurface(text_surface, NULL, screen, &text_pos);
+ 			}
+ 			else if(menu_confirmation){
+ 				sprintf(text_tmp, "Are you sure?");
+-				text_surface = TTF_RenderText_Blended(menu_info_font, text_tmp, text_color);
++				text_surface = render_menu_info(text_tmp, "确定吗", text_color);
+ 				text_pos.x = (screen->w - MENU_ZONE_WIDTH)/2 + (MENU_ZONE_WIDTH - text_surface->w)/2;
+ 				text_pos.y = screen->h - MENU_ZONE_HEIGHT/2 - text_surface->h/2 + 2*padding_y_from_center_menu_zone;
+ 				SDL_BlitSurface(text_surface, NULL, screen, &text_pos);
+@@ -846,14 +1061,14 @@ static void menu_screen_refresh(SDL_Surface *screen, int menuItem, int prevItem,
+ 		case MENU_TYPE_LAUNCHER:
+ 			if(menu_action){
+ 				sprintf(text_tmp, "In progress...");
+-				text_surface = TTF_RenderText_Blended(menu_info_font, text_tmp, text_color);
++				text_surface = render_menu_info(text_tmp, "处理中", text_color);
+ 				text_pos.x = (screen->w - MENU_ZONE_WIDTH)/2 + (MENU_ZONE_WIDTH - text_surface->w)/2;
+ 				text_pos.y = screen->h - MENU_ZONE_HEIGHT/2 - text_surface->h/2 + 2*padding_y_from_center_menu_zone;
+ 				SDL_BlitSurface(text_surface, NULL, screen, &text_pos);
+ 			}
+ 			else if(menu_confirmation){
+ 				sprintf(text_tmp, "Are you sure?");
+-				text_surface = TTF_RenderText_Blended(menu_info_font, text_tmp, text_color);
++				text_surface = render_menu_info(text_tmp, "确定吗", text_color);
+ 				text_pos.x = (screen->w - MENU_ZONE_WIDTH)/2 + (MENU_ZONE_WIDTH - text_surface->w)/2;
+ 				text_pos.y = screen->h - MENU_ZONE_HEIGHT/2 - text_surface->h/2 + 2*padding_y_from_center_menu_zone;
+ 				SDL_BlitSurface(text_surface, NULL, screen, &text_pos);
+@@ -869,7 +1084,7 @@ static void menu_screen_refresh(SDL_Surface *screen, int menuItem, int prevItem,
+ #if defined(HAS_MENU_EXIT) || defined(HAS_MENU_POWERDOWN)
+ 			if(menu_action){
+ 				sprintf(text_tmp, "Shutting down...");
+-				text_surface = TTF_RenderText_Blended(menu_info_font, text_tmp, text_color);
++				text_surface = render_menu_info(text_tmp, "关机中", text_color);
+ 				text_pos.x = (screen->w - MENU_ZONE_WIDTH)/2 + (MENU_ZONE_WIDTH - text_surface->w)/2;
+ 				text_pos.y = screen->h - MENU_ZONE_HEIGHT/2 - text_surface->h/2 + 2*padding_y_from_center_menu_zone;
+ 				SDL_BlitSurface(text_surface, NULL, screen, &text_pos);
+@@ -877,7 +1092,7 @@ static void menu_screen_refresh(SDL_Surface *screen, int menuItem, int prevItem,
+ 			else{
+ 				if(menu_confirmation){
+ 					sprintf(text_tmp, "Are you sure?");
+-					text_surface = TTF_RenderText_Blended(menu_info_font, text_tmp, text_color);
++					text_surface = render_menu_info(text_tmp, "确定吗", text_color);
+ 					text_pos.x = (screen->w - MENU_ZONE_WIDTH)/2 + (MENU_ZONE_WIDTH - text_surface->w)/2;
+ 					text_pos.y = screen->h - MENU_ZONE_HEIGHT/2 - text_surface->h/2 + 2*padding_y_from_center_menu_zone;
+ 					SDL_BlitSurface(text_surface, NULL, screen, &text_pos);
+@@ -888,21 +1103,21 @@ static void menu_screen_refresh(SDL_Surface *screen, int menuItem, int prevItem,
+ #ifdef HAS_MENU_RO_RW
+ 		case MENU_TYPE_RO_RW:
+ 			sprintf(text_tmp, "%s", read_write?"READ-ONLY":"READ-WRITE");
+-			text_surface = TTF_RenderText_Blended(menu_title_font, text_tmp, text_color);
++			text_surface = render_menu_title(text_tmp, read_write?"只读":"读写", text_color);
+ 			text_pos.x = (screen->w - MENU_ZONE_WIDTH)/2 + (MENU_ZONE_WIDTH - text_surface->w)/2;
+ 			text_pos.y = screen->h - MENU_ZONE_HEIGHT/2 - text_surface->h/2;
+ 			SDL_BlitSurface(text_surface, NULL, screen, &text_pos);
+ 
+ 			if(menu_action){
+ 				sprintf(text_tmp, "in progress ...");
+-				text_surface = TTF_RenderText_Blended(menu_info_font, text_tmp, text_color);
++				text_surface = render_menu_info(text_tmp, "处理中", text_color);
+ 				text_pos.x = (screen->w - MENU_ZONE_WIDTH)/2 + (MENU_ZONE_WIDTH - text_surface->w)/2;
+ 				text_pos.y = screen->h - MENU_ZONE_HEIGHT/2 - text_surface->h/2 + 2*padding_y_from_center_menu_zone;
+ 				SDL_BlitSurface(text_surface, NULL, screen, &text_pos);
+ 			}
+ 			else if(menu_confirmation){
+ 				sprintf(text_tmp, "Are you sure?");
+-				text_surface = TTF_RenderText_Blended(menu_info_font, text_tmp, text_color);
++				text_surface = render_menu_info(text_tmp, "确定吗", text_color);
+ 				text_pos.x = (screen->w - MENU_ZONE_WIDTH)/2 + (MENU_ZONE_WIDTH - text_surface->w)/2;
+ 				text_pos.y = screen->h - MENU_ZONE_HEIGHT/2 - text_surface->h/2 + 2*padding_y_from_center_menu_zone;
+ 				SDL_BlitSurface(text_surface, NULL, screen, &text_pos);
+@@ -1673,7 +1888,8 @@ int FK_RunResumeMenu(SDL_Surface *hw_screen)
+             }
+ 
+             /* Draw resume or reset option */
+-            text_surface = TTF_RenderText_Blended(menu_title_font, resume_options_str[option_idx], text_color);
++            text_surface = render_menu_title(resume_options_str[option_idx],
++                    resume_option_cjk(resume_options_str[option_idx]), text_color);
+             text_pos.x = (hw_screen->w - MENU_ZONE_WIDTH)/2 + (MENU_ZONE_WIDTH - text_surface->w)/2;
+             text_pos.y = hw_screen->h - MENU_ZONE_HEIGHT/2 - text_surface->h/2;
+             SDL_BlitSurface(text_surface, NULL, hw_screen, &text_pos);
+@@ -1681,7 +1897,7 @@ int FK_RunResumeMenu(SDL_Surface *hw_screen)
+             /* Draw confirmation */
+             if(menu_confirmation){
+                 sprintf(text_tmp, "Are you sure ?");
+-                text_surface = TTF_RenderText_Blended(menu_info_font, text_tmp, text_color);
++                text_surface = render_menu_info(text_tmp, "确定吗", text_color);
+                 text_pos.x = (hw_screen->w - MENU_ZONE_WIDTH)/2 + (MENU_ZONE_WIDTH - text_surface->w)/2;
+                 text_pos.y = hw_screen->h - MENU_ZONE_HEIGHT/2 - text_surface->h/2 + 2*padding_y_from_center_menu_zone;
+                 SDL_BlitSurface(text_surface, NULL, hw_screen, &text_pos);
