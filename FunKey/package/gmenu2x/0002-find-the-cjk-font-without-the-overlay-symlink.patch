@@ -1,0 +1,59 @@
+diff --git a/src/funkeymenu.cpp b/src/funkeymenu.cpp
+index 06346d7..b7f7787 100644
+--- a/src/funkeymenu.cpp
++++ b/src/funkeymenu.cpp
+@@ -38,7 +38,6 @@
+ #define MENU_FONT_SIZE_INFO         16
+ #define MENU_FONT_NAME_SMALL_INFO   "/usr/games/menu_resources/OpenSans-Regular.ttf"
+ #define MENU_FONT_SIZE_SMALL_INFO   13
+-#define MENU_FONT_NAME_CJK          "/usr/share/fonts/truetype/droid/DroidSansFallbackFull.ttf"
+ #define MENU_FONT_SIZE_CJK          18
+ #define MENU_PNG_BG_PATH            "/usr/games/menu_resources/zone_bg.png"
+ #define MENU_PNG_ARROW_TOP_PATH     "/usr/games/menu_resources/arrow_top.png"
+@@ -68,6 +67,21 @@ TTF_Font *FunkeyMenu::menu_small_info_font = NULL;
+ /* Not a member: nothing outside this file draws a menu title. */
+ static TTF_Font *menu_cjk_font = NULL;
+ 
++/* Where the fallback face might be, most specific first.
++ *
++ * fonts-droid installs into /usr/share/fonts/droid, and the rootfs overlay
++ * carries usr/share/fonts/truetype as a symlink to "." so that the Debian-style
++ * path resolves to the same file. Naming both means the menu keeps its Chinese
++ * if that symlink ever stops arriving -- an image assembled without it would
++ * otherwise fall back to English silently, with nothing but one log line to say
++ * why. Moving the install is not the alternative: it makes truetype a real
++ * directory, rsync then cannot replace it with the overlay's symlink, and
++ * target-finalize fails (see the revert of a7c20c9). */
++static const char *menu_cjk_font_paths[] = {
++	"/usr/share/fonts/truetype/droid/DroidSansFallbackFull.ttf",
++	"/usr/share/fonts/droid/DroidSansFallbackFull.ttf",
++};
++
+ /* One TTF_Font is one face and SDL_ttf does not fall back between them, so a
+  * title that mixes scripts cannot come out of a single render call -- OpenSans
+  * has no Chinese, and Droid Sans Fallback has no bold Latin. Render each half
+@@ -189,10 +203,21 @@ void FunkeyMenu::init(GMenu2X &gmenu2x)
+ 		MENU_ERROR_PRINTF("ERROR in init_menu_SDL: Could not open menu font %s, %s\n", MENU_FONT_NAME_SMALL_INFO, SDL_GetError());
+ 	}
+ 	/* Warned about but not required: without it the titles are English only,
+-	 * which is worse than the alternative and much better than no menu. */
+-	menu_cjk_font = TTF_OpenFont(MENU_FONT_NAME_CJK, MENU_FONT_SIZE_CJK);
++	 * which is worse than the alternative and much better than no menu. The
++	 * warning names every path tried, because "no Chinese in the menu" is
++	 * otherwise indistinguishable from the feature not being built in. */
++	for(unsigned i=0; i < sizeof(menu_cjk_font_paths)/sizeof(menu_cjk_font_paths[0]); i++){
++		menu_cjk_font = TTF_OpenFont(menu_cjk_font_paths[i], MENU_FONT_SIZE_CJK);
++		if(menu_cjk_font){
++			MENU_DEBUG_PRINTF("CJK menu font: %s\n", menu_cjk_font_paths[i]);
++			break;
++		}
++	}
+ 	if(!menu_cjk_font){
+-		MENU_ERROR_PRINTF("WARNING in init_menu_SDL: Could not open CJK font %s, %s -- menu titles will be English only\n", MENU_FONT_NAME_CJK, SDL_GetError());
++		MENU_ERROR_PRINTF("WARNING in init_menu_SDL: no CJK font found, menu titles will be English only. Tried:\n");
++		for(unsigned i=0; i < sizeof(menu_cjk_font_paths)/sizeof(menu_cjk_font_paths[0]); i++){
++			MENU_ERROR_PRINTF("  %s\n", menu_cjk_font_paths[i]);
++		}
+ 	}
+ 
+ 	/// ------ Save GMenu2X instance pointer ------
