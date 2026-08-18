@@ -3,6 +3,54 @@
 Release notes read the section matching their tag out of this file, so the
 headings are `## Starling-X.Y.Z` — the tag name, exactly.
 
+## Starling-3.1.3
+
+The Chinese added in 3.1.2 went into a menu this console never puts on screen.
+This puts it in the two menus that are actually reachable.
+
+- **The menu is bilingual wherever it is drawn.** The FunKey menu exists three
+  times over, in three separate code bases: `funkeymenu.cpp` in gmenu2x, which
+  is only reachable when gmenu2x is the launcher; `fk_menu.c` in picoarch, which
+  is what the menu button raises inside a game; and `MenuMode.cpp` in RetroFE,
+  which is what it raises in the library. 3.1.2 translated the first one, and a
+  default install shows the other two. All three now carry matching rendering
+  helpers and the same set of glosses: VOLUME 音量, BRIGHTNESS 亮度, SAVE 保存,
+  LOAD 读取, ASPECT RATIO 比例, ADVANCED 高级, EXIT GAME 退出, POWERDOWN 关机,
+  MOUNT USB 挂载, SET THEME 主题, SET LAUNCHER 启动器 -- down to the smaller
+  lines beneath them: 确定吗, 保存中, 读取中, 处理中, 关机中, 存档位, 读取位,
+  and the aspect ratio values. Proper nouns (GMENU2X, RETROFE) and user-supplied
+  names (theme directories) are left alone, since neither has a translation to
+  give. Matching, not shared: they are three copies in three independently
+  patched trees, so each now carries a comment naming the other two, because a
+  gloss changed in one of them and not the others is how the console ends up
+  showing different Chinese depending on which menu you opened.
+- **picoarch and RetroFE declare the font they read.** Both open Droid Sans
+  Fallback by absolute path, but neither selected `fonts-droid` -- the file was
+  in the image only because gmenu2x happened to pull it in. Switching gmenu2x
+  off would have taken the Chinese with it, and, since 3.1.2, RetroFE's fallback
+  face for every character outside ASCII.
+
+## Starling-3.1.2
+
+Fixes to the 3.1.1 build, and the first Chinese in the interface.
+
+- **picoarch cores build again.** Each core's make now runs single-job, with
+  the parallelism moved up to the cores as a whole. A make handed its own `-j`
+  advertises a job server in `MAKEFLAGS` to everything it runs, gcc included,
+  then closes the pipe for the link -- and gcc 10's `lto-wrapper` believes the
+  advertisement without checking, so picodrive's LTO link died every time. The
+  new setting also honours `BR2_JLEVEL`, which the hard-coded `-j4` never did.
+- **The in-game menu is bilingual.** VOLUME 音量, BRIGHTNESS 亮度, SAVE 保存,
+  LOAD 读取, ASPECT RATIO 比例, EXIT GAME 退出, SET LAUNCHER 启动器,
+  POWERDOWN 关机 -- each drawn from the layout font and the CJK fallback face
+  on a shared baseline. RETROFE keeps its name.
+- **RetroFE can render text outside ASCII at all.** It used to pre-render a
+  glyph atlas of ASCII 32-127 and walk strings a byte at a time against it, so
+  a Chinese character was three bytes that matched nothing and vanished
+  silently. It now decodes UTF-8 and renders anything the atlas lacks on
+  demand, falling back to Droid Sans Fallback for code points the theme font
+  does not carry. A ROM whose filename is Chinese now shows up.
+
 ## Starling-3.1.1
 
 **3.1.0 was tagged but never published, so this is the first release since

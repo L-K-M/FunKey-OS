@@ -58,6 +58,27 @@ need Recovery/board/funkey/rootfs-overlay/etc/sw-versions    "^Recovery	${v}$"
 # CHANGELOG.md for the release notes; a missing section is a warning there,
 # but here it is cheap to insist on.
 need CHANGELOG.md                                            "^## Starling-${v}$"
+# The README names the artifacts a user is told to download, so a stale one
+# sends them looking for a file the release does not contain. It drifted to
+# 3.1.2 while every file above already said 3.1.3, which is precisely the drift
+# this script exists to catch -- it just was not looking here yet.
+need README.md                                               "^# Starling ${v}$"
+need README.md                                               "FunKey-sdcard-Starling-${v}-RG_Nano\.img"
+need README.md                                               "FunKey-rootfs-Starling-${v}-RG_Nano\.fwu"
+need README.md                                               "FunKey-sdk-Starling-${v}\.tar\.gz"
+
+# Each artifact is named more than once -- the .img in the download table and
+# again in the dd command line, the .fwu in the table and again in the USB
+# update steps -- so the presence checks above are satisfied by a single fresh
+# mention while a stale one sits further down the file. Fail on any artifact
+# filename carrying a version that is not the current one.
+stale="$(grep -nE 'FunKey-(sdcard|rootfs|sdk)-Starling-[0-9]+(\.[0-9]+)+' README.md \
+  | grep -v "Starling-${v}[-.]" || true)"
+if [ -n "${stale}" ]; then
+    echo "ERROR: README.md names an artifact at a version other than ${version}:" >&2
+    printf '%s\n' "${stale}" >&2
+    fail=1
+fi
 
 if [ "${fail}" -ne 0 ]; then
     echo "" >&2
