@@ -3,6 +3,29 @@
 Release notes read the section matching their tag out of this file, so the
 headings are `## Starling-X.Y.Z` — the tag name, exactly.
 
+## Starling-3.1.3
+
+The Chinese added in 3.1.2 went into a menu this console never puts on screen.
+This puts it in the two menus that are actually reachable.
+
+- **The menu is bilingual wherever it is drawn.** The FunKey menu exists three
+  times over, in three separate code bases: `funkeymenu.cpp` in gmenu2x, which
+  is only reachable when gmenu2x is the launcher; `fk_menu.c` in picoarch, which
+  is what the menu button raises inside a game; and `MenuMode.cpp` in RetroFE,
+  which is what it raises in the library. 3.1.2 translated the first one, and a
+  default install shows the other two. All three now share one rendering helper
+  and one set of glosses -- VOLUME 音量, BRIGHTNESS 亮度, SAVE 保存, LOAD 读取,
+  ASPECT RATIO 比例, ADVANCED 高级, EXIT GAME 退出, POWERDOWN 关机, MOUNT USB 挂载,
+  SET THEME 主题, SET LAUNCHER 启动器 -- down to the smaller lines beneath them:
+  确定吗, 保存中, 存档位, and the aspect ratio values. Proper nouns (GMENU2X,
+  RETROFE) and user-supplied names (theme directories) are left alone, since
+  neither has a translation to give.
+- **picoarch and RetroFE declare the font they read.** Both open Droid Sans
+  Fallback by absolute path, but neither selected `fonts-droid` -- the file was
+  in the image only because gmenu2x happened to pull it in. Switching gmenu2x
+  off would have taken the Chinese with it, and, since 3.1.2, RetroFE's fallback
+  face for every character outside ASCII.
+
 ## Starling-3.1.2
 
 Fixes to the 3.1.1 build, and the first Chinese in the interface.
@@ -13,7 +36,8 @@ Fixes to the 3.1.1 build, and the first Chinese in the interface.
   then closes the pipe for the link -- and gcc 10's `lto-wrapper` believes the
   advertisement without checking, so picodrive's LTO link died every time. The
   new setting also honours `BR2_JLEVEL`, which the hard-coded `-j4` never did.
-- **The in-game menu is bilingual.** VOLUME 音量, BRIGHTNESS 亮度, SAVE 保存,
+- **The gmenu2x menu is bilingual.** (Not the menu a default install
+  shows -- see 3.1.3.) VOLUME 音量, BRIGHTNESS 亮度, SAVE 保存,
   LOAD 读取, ASPECT RATIO 比例, EXIT GAME 退出, SET LAUNCHER 启动器,
   POWERDOWN 关机 -- each drawn from the layout font and the CJK fallback face
   on a shared baseline. RETROFE keeps its name.
